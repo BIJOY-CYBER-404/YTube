@@ -14,10 +14,8 @@ import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -42,7 +40,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
 
         fullscreenContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -57,17 +58,8 @@ class MainActivity : ComponentActivity() {
         webView.loadUrl(TubeViewUiState.YOUTUBE_HOME_URL)
 
         setContent {
-            TubeViewTheme(darkTheme = true) {
+            TubeViewTheme(darkTheme = false) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-                val installPermissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.StartActivityForResult(),
-                    onResult = {
-                        viewModel.onReturnedFromInstallPermission { installIntent ->
-                            startActivity(installIntent)
-                        }
-                    },
-                )
 
                 NotificationPermissionPrompt(
                     backgroundPlayEnabled = uiState.backgroundPlayEnabled,
@@ -100,17 +92,12 @@ class MainActivity : ComponentActivity() {
                         updateState = uiState.updateState,
                         currentVersionName = BuildConfig.VERSION_NAME,
                         onStartUpdate = {
-                            viewModel.startMandatoryUpdateDownload { installIntent ->
-                                startActivity(installIntent)
+                            viewModel.launchBrowserUpdate { intent ->
+                                startActivity(intent)
                             }
                         },
-                        onGrantInstallPermission = {
-                            installPermissionLauncher.launch(viewModel.createUnknownSourcesIntent())
-                        },
-                        onInstallNow = {
-                            viewModel.installDownloadedUpdate { installIntent ->
-                                startActivity(installIntent)
-                            }
+                        onRecheckUpdate = {
+                            viewModel.checkForRemoteUpdate()
                         },
                     )
                 }
@@ -152,7 +139,6 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
-        // Keep WebView active in background when bgEnabled == true.
         if (!bgEnabled && !wasPausedForBgOff) {
             webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
             webView.onPause()
@@ -171,11 +157,12 @@ class MainActivity : ComponentActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
+    @Suppress("DEPRECATION")
     private fun createConfiguredWebView(): BackgroundAudioWebView {
         val initialBg = viewModel.uiState.value.backgroundPlayEnabled
         val view = BackgroundAudioWebView(this).apply {
             keepAliveInBackground = initialBg
-            setBackgroundColor(AndroidColor.parseColor("#0B0C10"))
+            setBackgroundColor(AndroidColor.WHITE)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -189,7 +176,14 @@ class MainActivity : ComponentActivity() {
                 loadWithOverviewMode = true
                 builtInZoomControls = false
                 displayZoomControls = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                allowFileAccess = false
+                allowContentAccess = false
+                allowFileAccessFromFileURLs = false
+                allowUniversalAccessFromFileURLs = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    safeBrowsingEnabled = true
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
@@ -275,7 +269,7 @@ class MainActivity : ComponentActivity() {
     private inner class TubeViewJsBridge {
         @JavascriptInterface
         fun onPlaybackStateChanged(isPlaying: Boolean, title: String?, channel: String?) {
-            val cleanTitle = title?.takeIf { it.isNotBlank() } ?: "TubeView Audio"
+            val cleanTitle = title?.takeIf { it.isNotBlank() } ?: "YTube Audio"
             val cleanChannel = channel?.takeIf { it.isNotBlank() } ?: "YouTube"
             runOnUiThread {
                 viewModel.updateMediaState(isPlaying, cleanTitle, cleanChannel)

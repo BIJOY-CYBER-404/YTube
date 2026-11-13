@@ -5,10 +5,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,19 +30,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.InstallMobile
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,37 +47,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.ShieldEmerald
-import com.example.ui.theme.ShieldEmeraldContainer
 import com.example.ui.theme.TubeRed
 import com.example.ui.theme.TubeRedDark
 
 sealed interface MandatoryUpdateState {
     data object None : MandatoryUpdateState
     data class Available(val release: GitHubReleaseInfo) : MandatoryUpdateState
-    data class Downloading(val release: GitHubReleaseInfo, val progressPercent: Int) : MandatoryUpdateState
-    data class NeedsInstallPermission(val release: GitHubReleaseInfo) : MandatoryUpdateState
-    data class ReadyToInstall(val release: GitHubReleaseInfo) : MandatoryUpdateState
+    data class DownloadLaunched(val release: GitHubReleaseInfo) : MandatoryUpdateState
     data class Failed(val release: GitHubReleaseInfo, val message: String) : MandatoryUpdateState
 }
 
 /**
- * Full-screen Material 3 mandatory update experience with expressive motion and zero skip/dismiss paths.
+ * Full-screen Material 3 Light Theme mandatory update experience with expressive motion
+ * and zero skip/dismiss paths.
  */
 @Composable
 fun MandatoryUpdateScreen(
     updateState: MandatoryUpdateState,
     currentVersionName: String,
     onStartUpdate: () -> Unit,
-    onGrantInstallPermission: () -> Unit,
-    onInstallNow: () -> Unit,
+    onRecheckUpdate: () -> Unit,
 ) {
     // Strictly mandatory update: block system back navigation while visible.
     BackHandler(enabled = true) {}
@@ -93,9 +81,7 @@ fun MandatoryUpdateScreen(
     val release = when (updateState) {
         MandatoryUpdateState.None -> return
         is MandatoryUpdateState.Available -> updateState.release
-        is MandatoryUpdateState.Downloading -> updateState.release
-        is MandatoryUpdateState.NeedsInstallPermission -> updateState.release
-        is MandatoryUpdateState.ReadyToInstall -> updateState.release
+        is MandatoryUpdateState.DownloadLaunched -> updateState.release
         is MandatoryUpdateState.Failed -> updateState.release
     }
 
@@ -119,6 +105,9 @@ fun MandatoryUpdateScreen(
         label = "icon_float",
     )
 
+    val lightBadgeGreenBg = Color(0xFFE7F8EF)
+    val lightBadgeGreenFg = Color(0xFF0E7A45)
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -131,9 +120,9 @@ fun MandatoryUpdateScreen(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF1A0A0E),
-                            MaterialTheme.colorScheme.background,
-                            Color(0xFF0A0C12),
+                            Color(0xFFFFF2F3),
+                            Color(0xFFFFFFFF),
+                            Color(0xFFF5F7FB),
                         ),
                     ),
                 )
@@ -149,7 +138,6 @@ fun MandatoryUpdateScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                // Top hero emblem + version pill
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -167,7 +155,7 @@ fun MandatoryUpdateScreen(
                                 .size(120.dp)
                                 .scale(outerScale)
                                 .clip(CircleShape)
-                                .background(TubeRed.copy(alpha = 0.14f)),
+                                .background(TubeRed.copy(alpha = 0.12f)),
                         )
                         Box(
                             modifier = Modifier
@@ -180,19 +168,17 @@ fun MandatoryUpdateScreen(
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            val heroIcon = when (updateState) {
-                                is MandatoryUpdateState.Downloading -> Icons.Filled.CloudDownload
-                                is MandatoryUpdateState.NeedsInstallPermission -> Icons.Filled.Security
-                                is MandatoryUpdateState.ReadyToInstall -> Icons.Filled.InstallMobile
-                                is MandatoryUpdateState.Failed -> Icons.Filled.ErrorOutline
-                                else -> Icons.Filled.SystemUpdate
+                            val iconRes = when (updateState) {
+                                is MandatoryUpdateState.DownloadLaunched -> R.drawable.ic_cloud_download
+                                is MandatoryUpdateState.Failed -> R.drawable.ic_error_outline
+                                else -> R.drawable.ic_system_update
                             }
                             Icon(
-                                imageVector = heroIcon,
+                                painter = painterResource(iconRes),
                                 contentDescription = stringResource(R.string.update_title),
                                 tint = Color.White,
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(42.dp)
                                     .padding(top = (if (iconFloat > 0) iconFloat else 0f).dp),
                             )
                         }
@@ -219,14 +205,13 @@ fun MandatoryUpdateScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Version transition badge
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(ShieldEmeraldContainer)
+                            .background(lightBadgeGreenBg)
                             .border(
                                 width = 1.dp,
-                                color = ShieldEmerald.copy(alpha = 0.45f),
+                                color = lightBadgeGreenFg.copy(alpha = 0.25f),
                                 shape = RoundedCornerShape(20.dp),
                             )
                             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -239,7 +224,7 @@ fun MandatoryUpdateScreen(
                                 release.versionName,
                             ),
                             style = MaterialTheme.typography.labelLarge,
-                            color = ShieldEmerald,
+                            color = lightBadgeGreenFg,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.4.sp,
                         )
@@ -247,14 +232,13 @@ fun MandatoryUpdateScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Release notes card
                     ElevatedCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
+                            containerColor = Color.White,
                         ),
-                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
                     ) {
                         Column(
                             modifier = Modifier
@@ -292,7 +276,6 @@ fun MandatoryUpdateScreen(
                     }
                 }
 
-                // Bottom action & animated progress region (zero skip option)
                 AnimatedContent(
                     targetState = updateState,
                     transitionSpec = {
@@ -321,6 +304,13 @@ fun MandatoryUpdateScreen(
                                         contentColor = Color.White,
                                     ),
                                 ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_open_in_new),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .padding(end = 4.dp),
+                                    )
                                     Text(
                                         text = stringResource(R.string.update_action_now),
                                         style = MaterialTheme.typography.titleMedium,
@@ -328,63 +318,20 @@ fun MandatoryUpdateScreen(
                                 }
                             }
 
-                            is MandatoryUpdateState.Downloading -> {
-                                val animatedProgress by animateFloatAsState(
-                                    targetValue = (state.progressPercent.coerceIn(0, 100)) / 100f,
-                                    animationSpec = spring(),
-                                    label = "download_progress",
-                                )
+                            is MandatoryUpdateState.DownloadLaunched -> {
                                 Text(
-                                    text = if (state.progressPercent in 0..100) {
-                                        stringResource(R.string.update_downloading_percent, state.progressPercent)
-                                    } else {
-                                        stringResource(R.string.update_downloading)
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                if (state.progressPercent in 0..100) {
-                                    LinearProgressIndicator(
-                                        progress = { animatedProgress },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(10.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .testTag("update_progress_bar"),
-                                        color = TubeRed,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        strokeCap = StrokeCap.Round,
-                                    )
-                                } else {
-                                    LinearProgressIndicator(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(10.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .testTag("update_progress_bar"),
-                                        color = TubeRed,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        strokeCap = StrokeCap.Round,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            is MandatoryUpdateState.NeedsInstallPermission -> {
-                                Text(
-                                    text = stringResource(R.string.update_permission_body),
+                                    text = stringResource(R.string.update_install_prompt_hint),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                 )
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Button(
-                                    onClick = onGrantInstallPermission,
+                                    onClick = onStartUpdate,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(56.dp)
-                                        .testTag("grant_install_permission_button"),
+                                        .height(52.dp)
+                                        .testTag("update_open_again_button"),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = TubeRed,
@@ -392,29 +339,20 @@ fun MandatoryUpdateScreen(
                                     ),
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.update_action_grant_permission),
+                                        text = stringResource(R.string.update_action_open_again),
                                         style = MaterialTheme.typography.titleMedium,
                                     )
                                 }
-                            }
-
-                            is MandatoryUpdateState.ReadyToInstall -> {
-                                Button(
-                                    onClick = onInstallNow,
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = onRecheckUpdate,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(56.dp)
-                                        .testTag("install_update_button"),
+                                        .height(48.dp)
+                                        .testTag("recheck_update_button"),
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = ShieldEmerald,
-                                        contentColor = Color(0xFF0A140F),
-                                    ),
                                 ) {
-                                    Text(
-                                        text = stringResource(R.string.update_action_install),
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
+                                    Text(text = stringResource(R.string.update_action_recheck))
                                 }
                             }
 
@@ -424,7 +362,7 @@ fun MandatoryUpdateScreen(
                                         stringResource(R.string.update_error_fallback)
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TubeRed,
+                                    color = TubeRedDark,
                                     textAlign = TextAlign.Center,
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -441,7 +379,7 @@ fun MandatoryUpdateScreen(
                                     ),
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.update_action_retry),
+                                        text = stringResource(R.string.update_action_now),
                                         style = MaterialTheme.typography.titleMedium,
                                     )
                                 }

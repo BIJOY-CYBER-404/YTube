@@ -1,17 +1,5 @@
 <resources>
     <string name="app_name">YTube</string>
-    <string name="cd_back">Navigate back</string>
-    <string name="cd_reload">Reload page</string>
-    <string name="cd_home">YouTube home</string>
-    <string name="cd_more_options">More options</string>
-    <string name="cd_bg_play_badge">Background play status</string>
-    <string name="menu_background_play">Background play</string>
-    <string name="menu_reload">Reload</string>
-    <string name="menu_youtube_home">YouTube home</string>
-    <string name="menu_about_limits">About &amp; limitations</string>
-    <string name="badge_adshield_count">AdShield • %1$d</string>
-    <string name="badge_bg_play_on">BG On</string>
-    <string name="badge_bg_play_off">BG Off</string>
     <string name="notification_channel_name">YTube Playback</string>
     <string name="notification_channel_description">Media controls for background YouTube audio playback</string>
     <string name="notification_default_title">YTube Audio</string>
@@ -20,9 +8,6 @@
     <string name="action_play">Play</string>
     <string name="action_pause">Pause</string>
     <string name="action_stop">Stop</string>
-    <string name="about_title">About YTube</string>
-    <string name="about_body">YTube is a personal YouTube WebView browser with network-level ad blocking, cosmetic ad cleanup, and background audio playback.\n\nKnown limitations:\n• YouTube sign-in may fail because Google blocks OAuth in embedded WebViews.\n• Server-side or anti-adblock ads may occasionally slip through.\n• Bypasses YouTube Premium features; intended for personal/learning use only, not Google Play distribution.</string>
-    <string name="action_close">Close</string>
     <string name="offline_title">Unable to reach YouTube</string>
     <string name="offline_subtitle">Check your internet connection and tap Retry to reload m.youtube.com.</string>
     <string name="action_retry">Retry</string>
@@ -30,14 +15,11 @@
     <string name="update_subtitle">A newer version of YTube is required to continue.</string>
     <string name="update_version_transition">v%1$s  →  v%2$s</string>
     <string name="update_whats_new">What\'s new</string>
-    <string name="update_default_notes">Performance improvements, updated ad-blocking filters, and playback stability fixes.</string>
+    <string name="update_default_notes">Performance improvements, lighter app size, and playback stability fixes.</string>
     <string name="update_action_now">Update Now</string>
-    <string name="update_downloading">Downloading update…</string>
-    <string name="update_downloading_percent">Downloading %1$d%%</string>
-    <string name="update_permission_title">Allow App Installs</string>
-    <string name="update_permission_body">Grant permission for YTube to install updates from this source, then tap Install Update.</string>
-    <string name="update_action_grant_permission">Allow &amp; Install</string>
-    <string name="update_action_install">Install Update</string>
-    <string name="update_action_retry">Retry Update</string>
-    <string name="update_error_fallback">Download failed. Check your connection and try again.</string>
+    <string name="update_action_open_again">Download Update Again</string>
+    <string name="update_opening_browser">Opening verified GitHub release download…</string>
+    <string name="update_install_prompt_hint">Install the downloaded APK from your browser or Downloads app, then reopen YTube.</string>
+    <string name="update_action_recheck">Check Version Again</string>
+    <string name="update_error_fallback">Unable to open the download link. Please try again.</string>
 </resources>

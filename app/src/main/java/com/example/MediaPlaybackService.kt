@@ -424,11 +424,11 @@ class MediaPlaybackService : Service() {
         const val CHANNEL_ID = "tubeview_playback_channel"
         const val NOTIFICATION_ID = 1042
 
-        const val ACTION_START = "com.example.action.START"
-        const val ACTION_PLAY = "com.example.action.PLAY"
-        const val ACTION_PAUSE = "com.example.action.PAUSE"
-        const val ACTION_STOP = "com.example.action.STOP"
-        const val ACTION_UPDATE_STATE = "com.example.action.UPDATE_STATE"
+        const val ACTION_START = "com.ytube.bk.action.START"
+        const val ACTION_PLAY = "com.ytube.bk.action.PLAY"
+        const val ACTION_PAUSE = "com.ytube.bk.action.PAUSE"
+        const val ACTION_STOP = "com.ytube.bk.action.STOP"
+        const val ACTION_UPDATE_STATE = "com.ytube.bk.action.UPDATE_STATE"
 
         const val EXTRA_IS_PLAYING = "extra_is_playing"
         const val EXTRA_TITLE = "extra_title"

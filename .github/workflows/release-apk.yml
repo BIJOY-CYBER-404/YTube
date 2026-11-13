@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v1.2.0)"
+        description: "Release tag (e.g. v1.3.0)"
         required: true
-        default: "v1.2.0"
+        default: "v1.3.0"
 
 permissions:
   contents: write
@@ -31,16 +31,31 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug
-
       - name: Run Unit Tests
         run: gradle :app:testDebugUnitTest
 
-      - name: Prepare Release APK
+      - name: Decode Release Keystore (if configured)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > my-upload-key.jks
+
+      - name: Build Release APK (when keystore configured)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          gradle :app:assembleRelease
           mkdir -p release-assets
-          cp app/build/outputs/apk/debug/app-debug.apk release-assets/YTube-${{ github.ref_name }}.apk
+          cp app/build/outputs/apk/release/app-release.apk release-assets/YTube-${{ inputs.tag_name || github.ref_name }}.apk
+
+      - name: Build Debug APK (fallback when no release keystore)
+        if: ${{ secrets.KEYSTORE_BASE64 == '' }}
+        run: |
+          gradle :app:assembleDebug
+          mkdir -p release-assets
+          cp app/build/outputs/apk/debug/app-debug.apk release-assets/YTube-${{ inputs.tag_name || github.ref_name }}.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

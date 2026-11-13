@@ -55,14 +55,18 @@ class AdBlockingWebViewClient(
         request: WebResourceRequest?,
     ): Boolean {
         val uri = request?.url ?: return false
-        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return false
+        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return true
+
+        if (scheme == "file" || scheme == "content" || scheme == "javascript" || scheme == "data") {
+            return true
+        }
 
         if (scheme != "http" && scheme != "https") {
             return openExternalUri(uri)
         }
 
         val host = uri.host?.lowercase(Locale.ROOT) ?: return false
-        if (isInternalYouTubeHost(host)) {
+        if (scheme == "https" && isInternalYouTubeHost(host)) {
             return false
         }
 

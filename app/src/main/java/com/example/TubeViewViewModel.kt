@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 data class TubeViewUiState(
     val backgroundPlayEnabled: Boolean = true,
@@ -37,8 +36,7 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val adBlocker: AdBlocker = AdBlocker.fromAssets(application)
-    private val updateManager = GitHubUpdateManager(application)
-    private var downloadedApkFile: File? = null
+    private val updateManager = GitHubUpdateManager()
 
     private val _uiState = MutableStateFlow(
         TubeViewUiState(
@@ -59,90 +57,50 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
 
     fun checkForRemoteUpdate() {
         val repoSlug = BuildConfig.GITHUB_RELEASES_REPO
-        if (!GitHubUpdateManager.isValidRepoSlug(repoSlug)) return
+        if (!GitHubUpdateManager.isValidRepoSlug(repoSlug)) {
+            _uiState.update { it.copy(updateState = MandatoryUpdateState.None) }
+            return
+        }
 
         viewModelScope.launch {
             val release = updateManager.fetchLatestRelease(
                 repoSlug = repoSlug,
                 currentVersionName = BuildConfig.VERSION_NAME,
+                currentVersionCode = BuildConfig.VERSION_CODE,
             )
-            if (release != null) {
-                _uiState.update {
-                    it.copy(updateState = MandatoryUpdateState.Available(release))
-                }
+            _uiState.update {
+                it.copy(
+                    updateState = if (release != null) {
+                        MandatoryUpdateState.Available(release)
+                    } else {
+                        MandatoryUpdateState.None
+                    },
+                )
             }
         }
     }
 
-    fun startMandatoryUpdateDownload(onReadyToInstall: (Intent) -> Unit) {
+    fun launchBrowserUpdate(openIntent: (Intent) -> Unit) {
         val release = when (val current = _uiState.value.updateState) {
             is MandatoryUpdateState.Available -> current.release
+            is MandatoryUpdateState.DownloadLaunched -> current.release
             is MandatoryUpdateState.Failed -> current.release
-            else -> return
+            MandatoryUpdateState.None -> return
         }
 
-        _uiState.update {
-            it.copy(updateState = MandatoryUpdateState.Downloading(release, progressPercent = 0))
-        }
-
-        viewModelScope.launch {
-            try {
-                val apkFile = updateManager.downloadApk(release) { percent ->
-                    _uiState.update {
-                        it.copy(updateState = MandatoryUpdateState.Downloading(release, percent))
-                    }
-                }
-                downloadedApkFile = apkFile
-
-                if (updateManager.canInstallPackages()) {
-                    _uiState.update {
-                        it.copy(updateState = MandatoryUpdateState.ReadyToInstall(release))
-                    }
-                    onReadyToInstall(updateManager.createInstallApkIntent(apkFile))
-                } else {
-                    _uiState.update {
-                        it.copy(updateState = MandatoryUpdateState.NeedsInstallPermission(release))
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        updateState = MandatoryUpdateState.Failed(
-                            release = release,
-                            message = e.localizedMessage ?: "Download failed.",
-                        ),
-                    )
-                }
-            }
-        }
-    }
-
-    fun createUnknownSourcesIntent(): Intent = updateManager.createUnknownSourcesSettingsIntent()
-
-    fun onReturnedFromInstallPermission(onReadyToInstall: (Intent) -> Unit) {
-        val current = _uiState.value.updateState
-        val release = when (current) {
-            is MandatoryUpdateState.NeedsInstallPermission -> current.release
-            is MandatoryUpdateState.ReadyToInstall -> current.release
-            else -> return
-        }
-        val apkFile = downloadedApkFile ?: return
-        if (updateManager.canInstallPackages()) {
+        try {
+            openIntent(updateManager.createBrowserDownloadIntent(release))
             _uiState.update {
-                it.copy(updateState = MandatoryUpdateState.ReadyToInstall(release))
+                it.copy(updateState = MandatoryUpdateState.DownloadLaunched(release))
             }
-            onReadyToInstall(updateManager.createInstallApkIntent(apkFile))
-        }
-    }
-
-    fun installDownloadedUpdate(onReadyToInstall: (Intent) -> Unit) {
-        val apkFile = downloadedApkFile ?: return
-        if (updateManager.canInstallPackages()) {
-            onReadyToInstall(updateManager.createInstallApkIntent(apkFile))
-        } else {
-            val release = (_uiState.value.updateState as? MandatoryUpdateState.ReadyToInstall)?.release ?: return
+        } catch (e: Exception) {
             _uiState.update {
-                it.copy(updateState = MandatoryUpdateState.NeedsInstallPermission(release))
+                it.copy(
+                    updateState = MandatoryUpdateState.Failed(
+                        release = release,
+                        message = e.localizedMessage ?: "No browser found to download update.",
+                    ),
+                )
             }
         }
     }

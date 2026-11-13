@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.os.Build
+import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,8 +25,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -40,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,7 +48,7 @@ import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.ui.theme.TubeRed
 
-private val YouTubeDarkBg = Color(0xFF0F0F0F)
+private val YouTubeLightBg = Color(0xFFFFFFFF)
 
 @Composable
 fun NotificationPermissionPrompt(backgroundPlayEnabled: Boolean) {
@@ -79,11 +79,11 @@ fun TubeViewScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YouTubeDarkBg),
+            .background(YouTubeLightBg),
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = YouTubeDarkBg,
+            containerColor = YouTubeLightBg,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { innerPadding ->
             Box(
@@ -107,10 +107,10 @@ fun TubeViewScreen(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                             )
-                            setProgressBackgroundColorSchemeColor(AndroidColor.parseColor("#212121"))
+                            setProgressBackgroundColorSchemeColor(AndroidColor.WHITE)
                             setColorSchemeColors(
                                 AndroidColor.parseColor("#FF2A36"),
-                                AndroidColor.WHITE,
+                                AndroidColor.parseColor("#0F0F0F"),
                             )
                             setOnChildScrollUpCallback { _, _ ->
                                 webView.scrollY > 0 || webView.canScrollVertically(-1)
@@ -184,7 +184,7 @@ fun TubeViewScreen(
 private fun OfflineErrorOverlay(onRetry: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = YouTubeDarkBg,
+        color = YouTubeLightBg,
     ) {
         Column(
             modifier = Modifier
@@ -194,7 +194,7 @@ private fun OfflineErrorOverlay(onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                imageVector = Icons.Filled.WifiOff,
+                painter = painterResource(R.drawable.ic_wifi_off),
                 contentDescription = null,
                 tint = TubeRed,
                 modifier = Modifier.size(56.dp),

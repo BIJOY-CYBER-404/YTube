@@ -17,10 +17,11 @@ import org.robolectric.annotation.Config
 class ExampleRobolectricTest {
 
     @Test
-    fun `app name matches YTube`() {
+    fun `app name and package name match YTube`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val appName = context.getString(R.string.app_name)
         assertEquals("YTube", appName)
+        assertEquals("com.ytube.bk", context.packageName)
     }
 
     @Test
