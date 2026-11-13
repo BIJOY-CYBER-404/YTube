@@ -25,34 +25,59 @@ data class GitHubReleaseInfo(
 )
 
 /**
- * Checks GitHub Releases for newer YTube APK releases, streams downloads with
- * live progress updates, and prepares Android's package installer intent via [FileProvider].
+ * Checks GitHub for newer YTube APK updates using:
+ * 1) GitHub Releases API (`https://api.github.com/repos/<owner>/<repo>/releases/latest`), and
+ * 2) Raw repository `update.json` fallback (`https://raw.githubusercontent.com/<owner>/<repo>/main/update.json`).
+ *
+ * Streams the APK with live progress updates and launches Android's package installer via [FileProvider].
  */
 class GitHubUpdateManager(private val context: Context) {
 
     suspend fun fetchLatestRelease(
         repoSlug: String,
         currentVersionName: String,
+        currentVersionCode: Int = BuildConfig.VERSION_CODE,
     ): GitHubReleaseInfo? = withContext(Dispatchers.IO) {
         val cleanSlug = repoSlug.trim().trim('/')
         if (!isValidRepoSlug(cleanSlug)) return@withContext null
 
+        // 1. Try GitHub Releases API first
         val apiUrl = "https://api.github.com/repos/$cleanSlug/releases/latest"
+        fetchTextFromUrl(apiUrl, acceptJson = true)?.let { rawJson ->
+            val fromRelease = parseReleaseJson(rawJson, currentVersionName)
+            if (fromRelease != null) return@withContext fromRelease
+        }
+
+        // 2. Fallback to tracked update.json in the repository's main branch
+        val rawManifestUrl = "https://raw.githubusercontent.com/$cleanSlug/main/update.json"
+        fetchTextFromUrl(rawManifestUrl, acceptJson = false)?.let { rawManifest ->
+            return@withContext parseUpdateManifestJson(
+                rawJson = rawManifest,
+                currentVersionName = currentVersionName,
+                currentVersionCode = currentVersionCode,
+            )
+        }
+
+        null
+    }
+
+    private fun fetchTextFromUrl(url: String, acceptJson: Boolean): String? {
         var connection: HttpURLConnection? = null
-        try {
-            connection = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
+        return try {
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10_000
                 readTimeout = 10_000
-                setRequestProperty("Accept", "application/vnd.github+json")
+                if (acceptJson) {
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                }
                 setRequestProperty("User-Agent", "YTube-Android/${BuildConfig.VERSION_NAME}")
             }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                return@withContext null
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                null
             }
-
-            val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
-            parseReleaseJson(rawJson, currentVersionName)
         } catch (_: Exception) {
             null
         } finally {
@@ -205,6 +230,33 @@ class GitHubUpdateManager(private val context: Context) {
                 apkDownloadUrl = apkUrl,
                 apkFileName = apkName,
                 apkSizeBytes = apkSize,
+            )
+        }
+
+        fun parseUpdateManifestJson(
+            rawJson: String,
+            currentVersionName: String,
+            currentVersionCode: Int,
+        ): GitHubReleaseInfo? {
+            val json = JSONObject(rawJson)
+            val remoteVersionName = normalizeVersion(json.optString("versionName", ""))
+            val remoteVersionCode = json.optInt("versionCode", 0)
+            val apkUrl = json.optString("apkUrl", "").trim()
+
+            if (!apkUrl.startsWith("https://", ignoreCase = true)) return null
+
+            val isNewer = remoteVersionCode > currentVersionCode ||
+                (remoteVersionName.isNotEmpty() && isNewerVersion(remoteVersionName, currentVersionName))
+            if (!isNewer) return null
+
+            val displayVersion = remoteVersionName.ifEmpty { remoteVersionCode.toString() }
+            return GitHubReleaseInfo(
+                versionName = displayVersion,
+                title = json.optString("title", "").ifBlank { "YTube v$displayVersion" },
+                releaseNotes = json.optString("releaseNotes", "").trim(),
+                apkDownloadUrl = apkUrl,
+                apkFileName = "YTube-v$displayVersion.apk",
+                apkSizeBytes = json.optLong("apkSizeBytes", 0L),
             )
         }
 

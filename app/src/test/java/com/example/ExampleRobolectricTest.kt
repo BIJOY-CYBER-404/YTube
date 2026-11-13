@@ -96,4 +96,33 @@ class ExampleRobolectricTest {
         val sameVersion = GitHubUpdateManager.parseReleaseJson(json, currentVersionName = "1.2.0")
         assertNull(sameVersion)
     }
+
+    @Test
+    fun `github update manager parses update manifest json fallback`() {
+        val manifest = """
+            {
+              "versionCode": 3,
+              "versionName": "1.2.0",
+              "mandatory": true,
+              "title": "YTube v1.2.0",
+              "releaseNotes": "Faster ad skip",
+              "apkUrl": "https://github.com/example/YTube/raw/main/apk/YTube-v1.2.0.apk"
+            }
+        """.trimIndent()
+
+        val update = GitHubUpdateManager.parseUpdateManifestJson(
+            rawJson = manifest,
+            currentVersionName = "1.1.0",
+            currentVersionCode = 2,
+        )
+        assertNotNull(update)
+        assertEquals("1.2.0", update?.versionName)
+
+        val noUpdate = GitHubUpdateManager.parseUpdateManifestJson(
+            rawJson = manifest,
+            currentVersionName = "1.2.0",
+            currentVersionCode = 3,
+        )
+        assertNull(noUpdate)
+    }
 }
