@@ -1,0 +1,6 @@
+{
+  "name": "YTube",
+  "description": "Ad-free YouTube WebView browser with background audio playback, pull-to-refresh, and mandatory GitHub in-app updates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

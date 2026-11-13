@@ -1,0 +1,45 @@
+# TubeView Ad-Blocking Filter List
+# Used by AdBlocker.kt inside WebViewClient.shouldInterceptRequest().
+# Limits: YouTube anti-adblock detection and server-side ad insertion
+# (ads muxed into googlevideo.com streams) cannot be blocked at the URL layer alone;
+# JsInjector handles cosmetic hiding, auto-skip, and 16x ad fast-forward.
+
+[domains]
+doubleclick.net
+googleadservices.com
+googlesyndication.com
+googleads.g.doubleclick.net
+pagead2.googlesyndication.com
+adservice.google.com
+ads.youtube.com
+tpc.googlesyndication.com
+ade.googlesyndication.com
+partnerad.l.doubleclick.net
+cm.g.doubleclick.net
+pubads.g.doubleclick.net
+securepubads.g.doubleclick.net
+adclick.g.doubleclick.net
+static.doubleclick.net
+s0.2mdn.net
+www.googleadservices.com
+fundingchoicesmessages.google.com
+imasdk.googleapis.com
+innovid.com
+moatads.com
+adsafeprotected.com
+
+[url-substrings]
+doubleclick
+pagead/
+googleads
+/api/stats/ads
+/pagead/
+get_midroll_info
+ad_break
+/ptracking
+/pcs/activeview
+adformat=
+ad_type=
+/aclk?
+imasdk.googleapis.com
+adservice.google
