@@ -1,7 +1,6 @@
 package com.example
 
 import android.content.Context
-import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,9 +13,9 @@ import java.util.Locale
 /**
  * Lightweight, allocation-conscious ad filter engine loaded from assets/adblock_lists.txt.
  *
- * Uses exact domain-suffix hash lookups and plain lowercase substring matching (no regex)
- * because [android.webkit.WebViewClient.shouldInterceptRequest] executes on a WebView
- * background thread for every sub-resource on the page.
+ * Uses fast string-slice host extraction, exact domain-suffix hash lookups, and plain substring
+ * matching (no Uri.parse or regex allocations) because [android.webkit.WebViewClient.shouldInterceptRequest]
+ * executes on Chromium's IO thread for every sub-resource on the page.
  */
 class AdBlocker(
     private val blockedDomains: Set<String>,
@@ -29,9 +28,8 @@ class AdBlocker(
         if (url.isNullOrBlank()) return false
 
         val normalizedUrl = url.lowercase(Locale.ROOT)
-        // Never block top-level YouTube navigation or video stream chunks directly by host,
-        // because googlevideo.com serves the actual media streams.
-        val host = extractHost(normalizedUrl)
+        // Fast-path: extract host without Uri.parse allocations
+        val host = extractHostFast(normalizedUrl)
         if (host != null && isBlockedHost(host)) {
             return true
         }
@@ -52,12 +50,27 @@ class AdBlocker(
         _blockedCount.value = 0
     }
 
-    private fun extractHost(normalizedUrl: String): String? {
-        return try {
-            Uri.parse(normalizedUrl).host?.lowercase(Locale.ROOT)?.trimEnd('.')
-        } catch (_: Exception) {
-            null
+    private fun extractHostFast(normalizedUrl: String): String? {
+        val schemeEnd = normalizedUrl.indexOf("://")
+        if (schemeEnd < 0) return null
+        val hostStart = schemeEnd + 3
+        if (hostStart >= normalizedUrl.length) return null
+
+        var hostEnd = normalizedUrl.indexOf('/', hostStart)
+        if (hostEnd < 0) hostEnd = normalizedUrl.indexOf('?', hostStart)
+        if (hostEnd < 0) hostEnd = normalizedUrl.indexOf('#', hostStart)
+        if (hostEnd < 0) hostEnd = normalizedUrl.length
+
+        var authority = normalizedUrl.substring(hostStart, hostEnd)
+        val atIdx = authority.lastIndexOf('@')
+        if (atIdx >= 0 && atIdx + 1 < authority.length) {
+            authority = authority.substring(atIdx + 1)
         }
+        val colonIdx = authority.indexOf(':')
+        if (colonIdx > 0) {
+            authority = authority.substring(0, colonIdx)
+        }
+        return authority.trimEnd('.').takeIf { it.isNotEmpty() }
     }
 
     private fun isBlockedHost(host: String): Boolean {

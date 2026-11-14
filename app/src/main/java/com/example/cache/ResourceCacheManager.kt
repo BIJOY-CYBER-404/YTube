@@ -3,7 +3,6 @@ package com.example.cache
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.util.LruCache
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -20,6 +19,8 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.GZIPInputStream
 
 /**
  * Two-tier (RAM LruCache + Disk) static asset cache & cold-start preloader for YTube.
@@ -54,6 +55,7 @@ class ResourceCacheManager private constructor(context: Context) {
 
     private val trackedBundles: MutableSet<String> =
         Collections.synchronizedSet(loadSavedBundleUrls().toMutableSet())
+    private val inFlightUrls: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     @Volatile
     private var trimInFlight = false
@@ -75,9 +77,10 @@ class ResourceCacheManager private constructor(context: Context) {
     }
 
     /**
-     * Attempts to serve static cacheable YouTube assets from RAM/Disk cache, or fetches & caches
-     * them transparently on a cache miss. Returns `null` on non-cacheable URLs or network errors
-     * so Chromium falls back cleanly to standard network loading.
+     * Serves static cacheable YouTube assets immediately (<1ms) from RAM/Disk cache on hit.
+     * On a cache miss, returns `null` immediately so Chromium uses its native HTTP/3 + Brotli
+     * multiplexed stack with zero Java blocking, while asynchronously populating the cache
+     * in the background for subsequent loads and warm starts.
      */
     fun intercept(request: WebResourceRequest): WebResourceResponse? {
         if (!request.method.equals("GET", ignoreCase = true)) return null
@@ -105,12 +108,21 @@ class ResourceCacheManager private constructor(context: Context) {
             return buildResponse(diskAsset.mimeType, diskAsset.bytes, requestOrigin)
         }
 
-        // 3. Cache miss -> fetch cleanly over HTTPS keep-alive and populate L1 + L2
-        val fetched = fetchAndStore(url, key, policy, request.requestHeaders) ?: return null
-        if (policy.isPreloadBundle) {
-            recordBundleUrl(url)
+        // 3. Cache miss -> let Chromium load via native HTTP/3 immediately & warm cache async
+        if (inFlightUrls.add(key)) {
+            val headersCopy = request.requestHeaders?.let { HashMap(it) }
+            ioScope.launch {
+                try {
+                    val fetched = fetchAndStore(url, key, policy, headersCopy)
+                    if (fetched != null && policy.isPreloadBundle) {
+                        recordBundleUrl(url)
+                    }
+                } finally {
+                    inFlightUrls.remove(key)
+                }
+            }
         }
-        return buildResponse(fetched.mimeType, fetched.bytes, requestOrigin)
+        return null
     }
 
     private fun preconnectHosts() {
@@ -158,19 +170,16 @@ class ResourceCacheManager private constructor(context: Context) {
         return try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 6_000
-                readTimeout = 8_000
+                connectTimeout = 4_000
+                readTimeout = 5_000
                 instanceFollowRedirects = true
                 useCaches = true
+                setRequestProperty("Accept-Encoding", "gzip")
                 requestHeaders?.forEach { (header, value) ->
                     if (header.equals("Accept", ignoreCase = true) ||
-                        header.equals("Accept-Encoding", ignoreCase = true) ||
                         header.equals("User-Agent", ignoreCase = true)
                     ) {
-                        // Avoid compressed streams we don't manually gunzip
-                        if (!header.equals("Accept-Encoding", ignoreCase = true)) {
-                            setRequestProperty(header, value)
-                        }
+                        setRequestProperty(header, value)
                     }
                 }
             }
@@ -179,7 +188,13 @@ class ResourceCacheManager private constructor(context: Context) {
             val contentLength = connection.contentLengthLong
             if (contentLength > MAX_SINGLE_ASSET_BYTES) return null
 
-            val rawBytes = connection.inputStream.use { input ->
+            val isGzip = connection.contentEncoding.equals("gzip", ignoreCase = true)
+            val stream = if (isGzip) {
+                GZIPInputStream(connection.inputStream)
+            } else {
+                connection.inputStream
+            }
+            val rawBytes = stream.use { input ->
                 val buffer = ByteArray(16 * 1024)
                 val out = java.io.ByteArrayOutputStream()
                 var total = 0
@@ -404,17 +419,31 @@ class ResourceCacheManager private constructor(context: Context) {
             if (rawUrl.isNullOrBlank() || !rawUrl.startsWith("https://", ignoreCase = true)) {
                 return null
             }
-            val uri = try {
-                Uri.parse(rawUrl)
-            } catch (_: Exception) {
-                return null
-            }
-            val host = uri.host?.lowercase(Locale.ROOT) ?: return null
-            val path = uri.path?.lowercase(Locale.ROOT) ?: ""
+            val hostStart = 8 // "https://".length
+            if (hostStart >= rawUrl.length) return null
+
+            var hostEnd = rawUrl.indexOf('/', hostStart)
+            val queryIdx = rawUrl.indexOf('?', hostStart)
+            val hashIdx = rawUrl.indexOf('#', hostStart)
+            val authorityEnd = listOf(hostEnd, queryIdx, hashIdx).filter { it >= 0 }.minOrNull() ?: rawUrl.length
+            if (authorityEnd <= hostStart) return null
+
+            val host = rawUrl.substring(hostStart, authorityEnd)
+                .substringBefore(':')
+                .trimEnd('.')
+                .lowercase(Locale.ROOT)
+            if (host.isEmpty()) return null
 
             // Never intercept or cache media streams, dynamic feeds, or API endpoints.
             if (host == "googlevideo.com" || host.endsWith(".googlevideo.com")) return null
             if (host == "accounts.google.com") return null
+
+            val path = if (hostEnd >= 0 && hostEnd < rawUrl.length) {
+                val pathEnd = listOf(queryIdx, hashIdx).filter { it > hostEnd }.minOrNull() ?: rawUrl.length
+                rawUrl.substring(hostEnd, pathEnd).lowercase(Locale.ROOT)
+            } else {
+                ""
+            }
             if (path.startsWith("/youtubei/") ||
                 path.startsWith("/api/") ||
                 path.startsWith("/watch") ||

@@ -70,11 +70,16 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<YTubeUiState> = _uiState.asStateFlow()
 
     private var lastCheckTimestampMs: Long = 0L
+    private var lastBlockedUiSyncMs: Long = 0L
 
     init {
         adBlocker.blockedCount
             .onEach { count ->
-                _uiState.update { it.copy(blockedCount = count) }
+                val now = System.currentTimeMillis()
+                if (count == 0 || now - lastBlockedUiSyncMs >= 1_500L) {
+                    lastBlockedUiSyncMs = now
+                    _uiState.update { it.copy(blockedCount = count) }
+                }
             }
             .launchIn(viewModelScope)
 
@@ -177,7 +182,12 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openDebugScreen() {
-        _uiState.update { it.copy(showDebugScreen = true) }
+        _uiState.update {
+            it.copy(
+                showDebugScreen = true,
+                blockedCount = adBlocker.blockedCount.value,
+            )
+        }
     }
 
     fun closeDebugScreen() {
@@ -385,7 +395,11 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateLoadingProgress(progress: Int) {
-        _uiState.update { it.copy(loadingProgress = progress.coerceIn(0, 100)) }
+        val clamped = progress.coerceIn(0, 100)
+        val quantized = if (clamped >= 90) 100 else 10
+        if (_uiState.value.loadingProgress != quantized) {
+            _uiState.update { it.copy(loadingProgress = quantized) }
+        }
     }
 
     fun updatePageState(url: String?, title: String?, canGoBack: Boolean) {

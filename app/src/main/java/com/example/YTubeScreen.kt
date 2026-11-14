@@ -14,7 +14,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -54,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -193,6 +193,7 @@ fun YTubeScreen(
                 }
 
                 // 1. Feed WebView (Home / Shorts / Subscriptions / Search / Sign-In)
+                val latestUiState by rememberUpdatedState(uiState)
                 key(feedRecoveryEpoch) {
                     val activeFeedWebView = feedWebViewProvider()
                     AndroidView(
@@ -203,10 +204,38 @@ fun YTubeScreen(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                 )
                                 setOnChildScrollUpCallback { _, _ ->
-                                    activeFeedWebView.scrollY > 0 || activeFeedWebView.canScrollVertically(-1)
+                                    val liveState = latestUiState
+                                    val url = liveState.currentUrl
+                                    val webUrl = activeFeedWebView.url.orEmpty()
+                                    val isShortsOrWatch = url.contains("/shorts", ignoreCase = true) ||
+                                        webUrl.contains("/shorts", ignoreCase = true) ||
+                                        url.contains("/watch", ignoreCase = true) ||
+                                        webUrl.contains("/watch", ignoreCase = true)
+                                    val isPlaybackActive = liveState.isFullscreen ||
+                                        liveState.playerMode != YTubePlayerMode.HIDDEN ||
+                                        liveState.isPlayingMedia ||
+                                        isShortsOrWatch
+                                    isPlaybackActive ||
+                                        activeFeedWebView.scrollY > 0 ||
+                                        activeFeedWebView.canScrollVertically(-1)
                                 }
                                 setOnRefreshListener {
-                                    onReloadClick()
+                                    val liveState = latestUiState
+                                    val url = liveState.currentUrl
+                                    val webUrl = activeFeedWebView.url.orEmpty()
+                                    val isShortsOrWatch = url.contains("/shorts", ignoreCase = true) ||
+                                        webUrl.contains("/shorts", ignoreCase = true) ||
+                                        url.contains("/watch", ignoreCase = true) ||
+                                        webUrl.contains("/watch", ignoreCase = true)
+                                    val isPlaybackActive = liveState.isFullscreen ||
+                                        liveState.playerMode != YTubePlayerMode.HIDDEN ||
+                                        liveState.isPlayingMedia ||
+                                        isShortsOrWatch
+                                    if (!liveState.hasMainFrameError && isPlaybackActive) {
+                                        isRefreshing = false
+                                    } else {
+                                        onReloadClick()
+                                    }
                                 }
                                 (activeFeedWebView.parent as? ViewGroup)?.removeView(activeFeedWebView)
                                 addView(
@@ -219,24 +248,36 @@ fun YTubeScreen(
                             }
                         },
                         update = { swipeRefresh ->
-                            swipeRefresh.setProgressBackgroundColorSchemeColor(
-                                if (isDark) AndroidColor.parseColor("#212121") else AndroidColor.WHITE,
-                            )
-                            swipeRefresh.setColorSchemeColors(
-                                AndroidColor.parseColor("#FF2A36"),
-                                if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
-                            )
+                            if (swipeRefresh.tag != isDark) {
+                                swipeRefresh.tag = isDark
+                                swipeRefresh.setProgressBackgroundColorSchemeColor(
+                                    if (isDark) AndroidColor.parseColor("#212121") else AndroidColor.WHITE,
+                                )
+                                swipeRefresh.setColorSchemeColors(
+                                    AndroidColor.parseColor("#FF2A36"),
+                                    if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
+                                )
+                            }
                             val url = uiState.currentUrl
-                            val isShorts = url.contains("/shorts", ignoreCase = true)
+                            val webUrl = activeFeedWebView.url.orEmpty()
+                            val isShorts = url.contains("/shorts", ignoreCase = true) ||
+                                webUrl.contains("/shorts", ignoreCase = true)
+                            val isWatch = url.contains("/watch", ignoreCase = true) ||
+                                webUrl.contains("/watch", ignoreCase = true)
                             val isAuth = url.contains("accounts.google.", ignoreCase = true) ||
                                 url.contains("accounts.youtube.", ignoreCase = true)
-                            swipeRefresh.isEnabled =
+                            val allowPullToRefresh =
                                 !uiState.isFullscreen &&
-                                    uiState.playerMode != YTubePlayerMode.EXPANDED &&
+                                    uiState.playerMode == YTubePlayerMode.HIDDEN &&
+                                    !uiState.isPlayingMedia &&
                                     !isShorts &&
+                                    !isWatch &&
                                     !isAuth
-                            if (swipeRefresh.isRefreshing &&
-                                (uiState.loadingProgress >= 90 || uiState.hasMainFrameError)
+                            if (swipeRefresh.isEnabled != allowPullToRefresh) {
+                                swipeRefresh.isEnabled = allowPullToRefresh
+                            }
+                            if ((!allowPullToRefresh || uiState.loadingProgress >= 90 || uiState.hasMainFrameError) &&
+                                swipeRefresh.isRefreshing
                             ) {
                                 swipeRefresh.isRefreshing = false
                             }
@@ -279,13 +320,6 @@ fun YTubeScreen(
 
                     val miniHeight = 64.dp
                     val miniBottomPadding = if (feedHasBottomNav) 48.dp else 0.dp
-
-                    // Expanded Watch full-screen backdrop / container
-                    val alphaAnim by animateFloatAsState(
-                        targetValue = if (isExpanded) 1f else 0f,
-                        animationSpec = tween(180),
-                        label = "watch_alpha",
-                    )
 
                     // Watch WebView container (Visible when Expanded; when Minimized, kept compact & alive in background without allocating full-screen GPU layer)
                     Box(

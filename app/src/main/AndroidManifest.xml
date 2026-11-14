@@ -13,6 +13,7 @@
     <application
         android:name=".YTubeApplication"
         android:allowBackup="false"
+        android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -22,7 +23,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|uiMode|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode|keyboard|keyboardHidden|locale|layoutDirection|fontScale"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"

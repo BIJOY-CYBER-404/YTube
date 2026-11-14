@@ -30,7 +30,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -122,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val isDarkTheme = isSystemInDarkTheme()
-            SideEffect {
+            LaunchedEffect(isDarkTheme) {
                 applySystemBarsAppearance(isDarkTheme)
                 applyWebViewTheme(feedWebView, isDarkTheme)
                 watchWebView?.let { applyWebViewTheme(it, isDarkTheme) }
@@ -175,6 +174,19 @@ class MainActivity : ComponentActivity() {
                             watchRecoveryEpoch = watchRecoveryEpoch,
                             fullscreenContainer = fullscreenContainer,
                             onReloadClick = {
+                                val currentState = viewModel.uiState.value
+                                val feedUrl = feedWebView.url.orEmpty()
+                                val isShortsOrWatch = currentState.currentUrl.contains("/shorts", ignoreCase = true) ||
+                                    feedUrl.contains("/shorts", ignoreCase = true) ||
+                                    currentState.currentUrl.contains("/watch", ignoreCase = true) ||
+                                    feedUrl.contains("/watch", ignoreCase = true)
+                                val isPlaybackActive = currentState.isFullscreen ||
+                                    currentState.playerMode != YTubePlayerMode.HIDDEN ||
+                                    currentState.isPlayingMedia ||
+                                    isShortsOrWatch
+                                if (!currentState.hasMainFrameError && isPlaybackActive) {
+                                    return@YTubeScreen
+                                }
                                 viewModel.setMainFrameError(false)
                                 val cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
                                     WebSettings.LOAD_DEFAULT
@@ -302,10 +314,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun minimizeWatchPlayer() {
+        watchWebView?.evaluateJavascript(JsInjector.buildMinimizedScript(true), null)
         viewModel.minimizeWatchVideo()
     }
 
     private fun expandWatchPlayer() {
+        watchWebView?.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
         viewModel.expandWatchVideo()
     }
 
@@ -476,9 +490,11 @@ class MainActivity : ComponentActivity() {
             ?.removePrefix("PREF=")
             .orEmpty()
 
-        val filteredParams = existingPref
-            .split('&')
-            .filter { it.isNotBlank() && !it.startsWith("f6=") }
+        val existingParams = existingPref.split('&').filter { it.isNotBlank() }
+        if (existingParams.any { it == themeValue }) {
+            return
+        }
+        val filteredParams = existingParams.filter { !it.startsWith("f6=") }
         val newPref = (filteredParams + themeValue).joinToString("&")
         val cookieString = "PREF=$newPref; Domain=.youtube.com; Path=/; Secure; SameSite=Lax"
         cookieManager.setCookie("https://m.youtube.com", cookieString)
@@ -531,6 +547,7 @@ class MainActivity : ComponentActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     safeBrowsingEnabled = true
                 }
+                offscreenPreRaster = true
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)

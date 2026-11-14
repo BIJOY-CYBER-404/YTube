@@ -124,7 +124,7 @@ object JsInjector {
                         'a[href^="intent://"]'
                     ].join(', ') + ' { display: none !important; visibility: hidden !important; height: 0 !important; }\n' +
                     '* { -webkit-tap-highlight-color: transparent !important; }\n' +
-                    'html, body { overscroll-behavior-y: contain !important; -webkit-font-smoothing: antialiased !important; }\n' +
+                    'html, body { overscroll-behavior-y: none !important; touch-action: manipulation !important; -webkit-font-smoothing: antialiased !important; }\n' +
                     '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }\n' +
                     'ytm-mobile-topbar-renderer .mobile-topbar-logo, ytm-home-logo, #home-icon { cursor: default !important; }\n' +
                     // Watch-role native YouTube-app player layout: remove web top bar above video & eliminate phantom 56.25% placeholder gap
@@ -330,7 +330,7 @@ object JsInjector {
                     } catch (e) {}
                 }
 
-                // 2d. Collapse phantom placeholder spaces below player & automate video unmuting
+                // 2d. Collapse phantom placeholder spaces below player (mark collapsed nodes to avoid style thrashing) & automate video unmuting
                 var collapseWatchSpacing = function() {
                     if (window.__ytubeRole !== 'watch') return;
                     try {
@@ -338,14 +338,19 @@ object JsInjector {
                             '.player-placeholder-wrapper, .player-placeholder, [class*="player-placeholder"], ytm-app .player-placeholder-wrapper, #player-cinematics-container, .player-cinematics'
                         );
                         for (var i = 0; i < placeholders.length; i++) {
-                            placeholders[i].style.setProperty('display', 'none', 'important');
-                            placeholders[i].style.setProperty('height', '0px', 'important');
-                            placeholders[i].style.setProperty('min-height', '0px', 'important');
-                            placeholders[i].style.setProperty('padding', '0px', 'important');
-                            placeholders[i].style.setProperty('margin', '0px', 'important');
+                            var ph = placeholders[i];
+                            if (!ph.__ytubeCollapsed) {
+                                ph.__ytubeCollapsed = true;
+                                ph.style.setProperty('display', 'none', 'important');
+                                ph.style.setProperty('height', '0px', 'important');
+                                ph.style.setProperty('min-height', '0px', 'important');
+                                ph.style.setProperty('padding', '0px', 'important');
+                                ph.style.setProperty('margin', '0px', 'important');
+                            }
                         }
                         var appEl = document.querySelector('ytm-app, ytm-watch');
-                        if (appEl) {
+                        if (appEl && !appEl.__ytubeCollapsed) {
+                            appEl.__ytubeCollapsed = true;
                             appEl.style.setProperty('padding-top', '0px', 'important');
                             appEl.style.setProperty('margin-top', '0px', 'important');
                         }
@@ -353,8 +358,12 @@ object JsInjector {
                             '.watch-below-the-player, ytm-slim-video-metadata-section-renderer, .watch-main-col, ytm-single-column-watch-next-results-renderer'
                         );
                         for (var j = 0; j < belowEls.length; j++) {
-                            belowEls[j].style.setProperty('padding-top', '0px', 'important');
-                            belowEls[j].style.setProperty('margin-top', '0px', 'important');
+                            var bel = belowEls[j];
+                            if (!bel.__ytubeCollapsed) {
+                                bel.__ytubeCollapsed = true;
+                                bel.style.setProperty('padding-top', '0px', 'important');
+                                bel.style.setProperty('margin-top', '0px', 'important');
+                            }
                         }
                     } catch (e) {}
                 };
@@ -418,11 +427,13 @@ object JsInjector {
                 // Signal Android once actual feed/watch UI nodes have mounted so skeletons dissolve cleanly
                 var notifyContentReady = function() {
                     if (window.__ytubeRole === 'watch') {
-                        collapseWatchSpacing();
-                        triggerUnmute();
                         if (!window.__ytubeWatchReadySignaled) {
-                            var videoNode = document.querySelector('video');
-                            var hasWatchDom = Boolean(videoNode && (videoNode.readyState >= 1 || document.querySelector('ytm-slim-video-metadata-section-renderer, ytm-watch')));
+                            collapseWatchSpacing();
+                            var v0 = document.querySelector('video');
+                            if (!v0 || v0.muted || v0.volume < 1.0) {
+                                triggerUnmute();
+                            }
+                            var hasWatchDom = Boolean(v0 && (v0.readyState >= 1 || document.querySelector('ytm-slim-video-metadata-section-renderer, ytm-watch')));
                             if (hasWatchDom && window.YTubeBridge && typeof window.YTubeBridge.onWatchContentReady === 'function') {
                                 window.__ytubeWatchReadySignaled = true;
                                 window.YTubeBridge.onWatchContentReady();
@@ -433,13 +444,14 @@ object JsInjector {
 
                     if (window.__ytubeFirstContentSignaled) return;
                     var hasContent = Boolean(
-                        document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-reel-video-renderer, ytm-watch, #player-container-id, video')
+                        document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-rich-grid-renderer, ytm-reel-video-renderer, ytm-watch, #player-container-id, video')
                     );
                     if (hasContent && window.YTubeBridge && typeof window.YTubeBridge.onFirstContentReady === 'function') {
                         window.__ytubeFirstContentSignaled = true;
                         window.YTubeBridge.onFirstContentReady();
                     }
                 };
+                window.__ytubeNotifyReady = notifyContentReady;
                 notifyContentReady();
 
                 // 3. Playback control hooks for MediaPlaybackService & Miniplayer
@@ -470,18 +482,22 @@ object JsInjector {
                     }
                 };
 
-                // 4. 500 ms SPA-safe timer for auto-skip, 16x ad fast-forward, automatic next play, image prewarm, spacing collapse & unmute sync
+                // 4. 500 ms SPA-safe timer for auto-skip, 16x ad fast-forward, automatic next play, throttled image prewarm & spacing collapse
                 if (!window.__ytubeAdTimer) {
                     window.__ytubeAdSpeedActive = false;
                     window.__ytubeSavedMuted = null;
                     window.__ytubeLastReported = '';
+                    window.__ytubeTickCount = 0;
 
                     window.__ytubeAdTimer = setInterval(function() {
                         try {
+                            window.__ytubeTickCount = (window.__ytubeTickCount + 1) % 3;
                             notifyContentReady();
-                            collapseWatchSpacing();
-                            if (window.__ytubeScanImages) {
-                                window.__ytubeScanImages();
+                            if (window.__ytubeTickCount === 0) {
+                                collapseWatchSpacing();
+                                if (window.__ytubeScanImages) {
+                                    window.__ytubeScanImages();
+                                }
                             }
 
                             // Auto-click skip buttons
@@ -643,6 +659,25 @@ object JsInjector {
                 }
             })();
         """.trimIndent()
+    }
+
+    fun buildSpaSyncScript(
+        backgroundPlayEnabled: Boolean,
+        isDarkTheme: Boolean,
+        isWatchRole: Boolean,
+        isMinimized: Boolean,
+    ): String {
+        val bgLiteral = if (backgroundPlayEnabled) "true" else "false"
+        val schemeLiteral = if (isDarkTheme) "dark" else "light"
+        val roleLiteral = if (isWatchRole) "watch" else "feed"
+        val minLiteral = if (isMinimized) "true" else "false"
+        return "(function(){window.__ytubeBgPlay=$bgLiteral;window.__ytubeRole='$roleLiteral';" +
+            "if(document.documentElement){document.documentElement.style.colorScheme='$schemeLiteral';" +
+            "if('$roleLiteral'==='watch'){document.documentElement.classList.add('ytube-watch-role');}" +
+            "else{document.documentElement.classList.remove('ytube-watch-role','ytube-minimized');}}" +
+            "if(window.__ytubeSetMinimized&&'$roleLiteral'==='watch'){window.__ytubeSetMinimized($minLiteral);}" +
+            "if(window.__ytubeNotifyReady){window.__ytubeNotifyReady();}" +
+            "if(window.__ytubeScanImages){window.__ytubeScanImages();}})();"
     }
 
     fun buildThemeSyncScript(isDarkTheme: Boolean): String {

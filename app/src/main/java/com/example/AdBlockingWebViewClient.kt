@@ -149,8 +149,9 @@ class AdBlockingWebViewClient(
             }
         }
 
-        // YouTube is an SPA; reinforce protection scripts on client-side route transitions.
-        injectProtectionScripts(view)
+        // YouTube is an SPA; reinforce protection scripts lightly on client-side transitions
+        // (e.g. Shorts swipes, tab switches) without re-evaluating the full 43KB payload.
+        injectSpaTransitionScript(view)
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
 
@@ -202,6 +203,17 @@ class AdBlockingWebViewClient(
         if (isWatchRole) {
             view.evaluateJavascript(JsInjector.buildMinimizedScript(isMinimizedWatch()), null)
         }
+    }
+
+    private fun injectSpaTransitionScript(view: WebView?) {
+        view ?: return
+        val script = JsInjector.buildSpaSyncScript(
+            backgroundPlayEnabled = isBackgroundPlayEnabled(),
+            isDarkTheme = isDarkTheme(),
+            isWatchRole = isWatchRole,
+            isMinimized = isWatchRole && isMinimizedWatch(),
+        )
+        view.evaluateJavascript(script, null)
     }
 
     private fun flushSessionCookies(url: String?) {

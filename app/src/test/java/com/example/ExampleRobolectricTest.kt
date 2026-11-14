@@ -281,4 +281,32 @@ class ExampleRobolectricTest {
         assertTrue(watchScript.contains("__ytubeAutoNextFiredForId"))
         assertFalse(watchScript.contains(".ytp-upnext-autoplay-icon"))
     }
+
+    @Test
+    fun `performance optimizations lock overscroll reload and mark collapsed dom nodes`() {
+        val feedScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true, isWatchRole = false)
+        assertTrue(feedScript.contains("overscroll-behavior-y: none !important"))
+        assertTrue(feedScript.contains("touch-action: manipulation !important"))
+        assertTrue(feedScript.contains("__ytubeCollapsed"))
+        assertTrue(feedScript.contains("__ytubeTickCount"))
+
+        val spaSync = JsInjector.buildSpaSyncScript(
+            backgroundPlayEnabled = true,
+            isDarkTheme = true,
+            isWatchRole = true,
+            isMinimized = true,
+        )
+        assertTrue(spaSync.contains("__ytubeSetMinimized(true)"))
+        assertTrue(spaSync.contains("__ytubeNotifyReady"))
+        assertFalse(spaSync.contains("ytube-adblock-css"))
+
+        val adBlocker = AdBlocker(setOf("doubleclick.net", "ads.youtube.com"), listOf("/pagead/"))
+        assertTrue(adBlocker.isAdRequest("HTTPS://SUB.DOUBLECLICK.NET:443/pixel?id=1#frag"))
+        assertTrue(adBlocker.isAdRequest("https://ads.youtube.com./beacon"))
+        assertFalse(adBlocker.isAdRequest("https://m.youtube.com/shorts/xyz123"))
+
+        assertNotNull(ResourceCacheManager.classifyAsset("https://i.ytimg.com/vi/abc123/hq720.jpg?sqp=123"))
+        assertNotNull(ResourceCacheManager.classifyAsset("https://m.youtube.com/s/desktop/1234/base.js"))
+        assertNull(ResourceCacheManager.classifyAsset("https://m.youtube.com/shorts/xyz123?feature=share"))
+    }
 }
