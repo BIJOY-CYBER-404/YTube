@@ -1,7 +1,7 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
--keepclassmembers class com.example.MainActivity$TubeViewJsBridge {
+-keepclassmembers class com.example.MainActivity$YTubeJsBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
 

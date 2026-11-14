@@ -3,7 +3,7 @@
     <!-- Optional fallback if GITHUB_RELEASES_REPO is not set in AI Studio Secrets / .env -->
     <string name="github_releases_repo" translatable="false">BIJOY-CYBER-404/YTube</string>
     <string name="notification_channel_name">YTube Playback</string>
-    <string name="notification_channel_description">Media controls for background YouTube audio playback</string>
+    <string name="notification_channel_description">Media controls for background YTube audio playback</string>
     <string name="notification_default_title">YTube Audio</string>
     <string name="notification_playing_subtext">Playing in background</string>
     <string name="notification_paused_subtext">Paused</string>
@@ -11,17 +11,20 @@
     <string name="action_pause">Pause</string>
     <string name="action_stop">Stop</string>
     <string name="offline_title">Unable to reach YouTube</string>
-    <string name="offline_subtitle">Check your internet connection and tap Retry to reload m.youtube.com.</string>
+    <string name="offline_subtitle">Check your internet connection and tap Retry to reload YTube.</string>
     <string name="action_retry">Retry</string>
     <string name="update_title">Update Required</string>
     <string name="update_subtitle">A newer version of YTube is required to continue.</string>
     <string name="update_version_transition">v%1$s  →  v%2$s</string>
     <string name="update_whats_new">What\'s new</string>
-    <string name="update_default_notes">Performance improvements, lighter app size, and playback stability fixes.</string>
+    <string name="update_default_notes">Performance improvements, faster preload caching, and in-app updates.</string>
     <string name="update_action_now">Update Now</string>
-    <string name="update_action_open_again">Download Update Again</string>
-    <string name="update_opening_browser">Opening verified GitHub release download…</string>
-    <string name="update_install_prompt_hint">Install the downloaded APK from your browser or Downloads app, then reopen YTube.</string>
+    <string name="update_downloading_progress">Downloading update inside YTube… %1$d%% (%2$.1f / %3$.1f MB)</string>
+    <string name="update_downloading_indeterminate">Downloading update inside YTube… %.1f MB</string>
+    <string name="update_ready_install_hint">Update downloaded! Tap below to install YTube directly.</string>
+    <string name="update_permission_hint">Allow YTube to install app updates once in Android settings, then installation continues automatically.</string>
+    <string name="update_action_install_now">Install Update</string>
+    <string name="update_action_allow_install">Allow &amp; Install Update</string>
     <string name="update_action_recheck">Check Version Again</string>
-    <string name="update_error_fallback">Unable to open the download link. Please try again.</string>
+    <string name="update_error_fallback">Unable to download the update inside YTube. Please try again.</string>
 </resources>

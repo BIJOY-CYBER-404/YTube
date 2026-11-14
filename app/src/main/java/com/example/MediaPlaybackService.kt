@@ -185,7 +185,7 @@ class MediaPlaybackService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun initMediaSession() {
-        mediaSession = MediaSession(this, "TubeViewMediaSession").apply {
+        mediaSession = MediaSession(this, "YTubeMediaSession").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() {
                     requestAudioFocus()
@@ -397,7 +397,7 @@ class MediaPlaybackService : Service() {
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        val lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TubeView::MediaPlaybackWakeLock")
+        val lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YTube::MediaPlaybackWakeLock")
         lock.setReferenceCounted(false)
         lock.acquire(6 * 60 * 60 * 1000L) // 6-hour safety cap
         wakeLock = lock
@@ -421,7 +421,7 @@ class MediaPlaybackService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "tubeview_playback_channel"
+        const val CHANNEL_ID = "ytube_playback_channel"
         const val NOTIFICATION_ID = 1042
 
         const val ACTION_START = "com.ytube.bk.action.START"

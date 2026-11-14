@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "1.3.0",
+  "versionCode": 7,
+  "versionName": "1.4.0",
   "mandatory": true,
-  "title": "YTube v1.3.0",
-  "releaseNotes": "Added native preload shimmer skeleton, two-tier RAM/disk asset cache, cold-start CDN warmup, and smoother native touch feel.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.3.0.apk"
+  "title": "YTube v1.4.0",
+  "releaseNotes": "Full YTube rebrand, direct inside-the-app APK download & install, ServiceWorker cache interception, and native YouTube-style launch skeleton.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.0.apk"
 }

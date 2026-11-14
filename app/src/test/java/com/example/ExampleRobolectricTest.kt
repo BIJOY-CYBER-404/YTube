@@ -56,14 +56,14 @@ class ExampleRobolectricTest {
     @Test
     fun `js injector embeds visibility toggle, skip timer, and playback hooks`() {
         val scriptEnabled = JsInjector.buildProtectionScript(backgroundPlayEnabled = true)
-        assertTrue(scriptEnabled.contains("window.__tubeviewBgPlay = true;"))
-        assertTrue(scriptEnabled.contains("window.__tubeviewPlay"))
-        assertTrue(scriptEnabled.contains("window.__tubeviewPause"))
+        assertTrue(scriptEnabled.contains("window.__ytubeBgPlay = true;"))
+        assertTrue(scriptEnabled.contains("window.__ytubePlay"))
+        assertTrue(scriptEnabled.contains("window.__ytubePause"))
         assertTrue(scriptEnabled.contains("playbackRate = 16"))
         assertTrue(scriptEnabled.contains(".ytp-ad-skip-button"))
 
         val scriptDisabled = JsInjector.buildProtectionScript(backgroundPlayEnabled = false)
-        assertTrue(scriptDisabled.contains("window.__tubeviewBgPlay = false;"))
+        assertTrue(scriptDisabled.contains("window.__ytubeBgPlay = false;"))
     }
 
     @Test
@@ -147,7 +147,10 @@ class ExampleRobolectricTest {
             repoSlug = "owner/YTube",
         )
         assertNotNull(parsedManifest)
-        assertEquals("https://github.com/owner/YTube/releases", parsedManifest?.apkDownloadUrl)
+        assertEquals(
+            "https://github.com/owner/YTube/raw/main/apk/YTube-v1.3.0.apk",
+            parsedManifest?.apkDownloadUrl,
+        )
 
         val prereleaseArray = """
             [
@@ -169,7 +172,7 @@ class ExampleRobolectricTest {
         assertNotNull(parsedArray)
         assertEquals("1.3.0", parsedArray?.versionName)
         assertEquals(
-            "https://github.com/owner/YTube/releases/tag/release-1.3.0",
+            "https://github.com/owner/YTube/raw/main/apk/YTube-v1.3.0.apk",
             parsedArray?.apkDownloadUrl,
         )
     }

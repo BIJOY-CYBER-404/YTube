@@ -1,4 +1,4 @@
-# TubeView Ad-Blocking Filter List
+# YTube Ad-Blocking Filter List
 # Used by AdBlocker.kt inside WebViewClient.shouldInterceptRequest().
 # Limits: YouTube anti-adblock detection and server-side ad insertion
 # (ads muxed into googlevideo.com streams) cannot be blocked at the URL layer alone;

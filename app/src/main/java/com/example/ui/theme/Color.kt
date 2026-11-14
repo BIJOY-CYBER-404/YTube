@@ -2,14 +2,14 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val TubeRed = Color(0xFFFF2A36)
-val TubeRedDark = Color(0xFFD91622)
-val TubeObsidian = Color(0xFF0B0C10)
-val TubeSurface = Color(0xFF14161D)
-val TubeSurfaceElevated = Color(0xFF1D202A)
-val TubeOutline = Color(0xFF2C3140)
-val TubeTextPrimary = Color(0xFFF4F5F8)
-val TubeTextMuted = Color(0xFF9BA2B5)
+val YTubeRed = Color(0xFFFF2A36)
+val YTubeRedDark = Color(0xFFD91622)
+val YTubeObsidian = Color(0xFF0B0C10)
+val YTubeSurface = Color(0xFF14161D)
+val YTubeSurfaceElevated = Color(0xFF1D202A)
+val YTubeOutline = Color(0xFF2C3140)
+val YTubeTextPrimary = Color(0xFFF4F5F8)
+val YTubeTextMuted = Color(0xFF9BA2B5)
 val ShieldEmerald = Color(0xFF32D583)
 val ShieldEmeraldContainer = Color(0xFF132D22)
 

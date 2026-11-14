@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.os.Build
-import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.example.ui.theme.TubeRed
+import com.example.ui.theme.YTubeRed
 
 private val YouTubeLightBg = Color(0xFFFFFFFF)
 
@@ -85,8 +85,8 @@ fun NotificationPermissionPrompt(backgroundPlayEnabled: Boolean) {
 }
 
 @Composable
-fun TubeViewScreen(
-    uiState: TubeViewUiState,
+fun YTubeScreen(
+    uiState: YTubeUiState,
     webView: BackgroundAudioWebView,
     fullscreenContainer: FrameLayout,
     onReloadClick: () -> Unit,
@@ -167,9 +167,7 @@ fun TubeViewScreen(
                     enter = fadeIn(tween(120)),
                     exit = fadeOut(tween(240)),
                 ) {
-                    InitialPreloadSkeleton(
-                        progress = uiState.loadingProgress,
-                    )
+                    InitialPreloadSkeleton()
                 }
 
                 if (!uiState.isFullscreen && uiState.loadingProgress in 1..99) {
@@ -180,7 +178,7 @@ fun TubeViewScreen(
                             .height(2.dp)
                             .align(Alignment.TopCenter)
                             .testTag("page_progress_bar"),
-                        color = TubeRed,
+                        color = YTubeRed,
                         trackColor = Color.Transparent,
                     )
                 }
@@ -211,13 +209,13 @@ fun TubeViewScreen(
 }
 
 @Composable
-private fun InitialPreloadSkeleton(progress: Int) {
+private fun InitialPreloadSkeleton() {
     val infiniteTransition = rememberInfiniteTransition(label = "preload_shimmer")
     val shimmerOffset by infiniteTransition.animateFloat(
         initialValue = -400f,
         targetValue = 1200f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            animation = tween(durationMillis = 1050, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "shimmer_offset",
@@ -239,117 +237,144 @@ private fun InitialPreloadSkeleton(progress: Int) {
             .testTag("preload_skeleton_overlay"),
         color = YouTubeLightBg,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            // Native top bar placeholder matching YTube light chrome
-            Row(
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 30.dp, height = 22.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(TubeRed),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(shimmerBrush),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(shimmerBrush),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Filter chips skeleton row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(54.dp, 82.dp, 70.dp, 90.dp).forEach { chipWidth ->
-                    Box(
-                        modifier = Modifier
-                            .width(chipWidth)
-                            .height(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(shimmerBrush),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Feed video card placeholders
-            repeat(3) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(shimmerBrush),
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top,
-                    ) {
+                // Native YouTube-style header bar placeholder
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(width = 30.dp, height = 22.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(YTubeRed),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
                                 .clip(CircleShape)
                                 .background(shimmerBrush),
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.92f)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(shimmerBrush),
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.55f)
-                                    .height(12.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(shimmerBrush),
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(shimmerBrush),
+                        )
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Filter chips skeleton row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(54.dp, 82.dp, 70.dp, 90.dp).forEach { chipWidth ->
+                        Box(
+                            modifier = Modifier
+                                .width(chipWidth)
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(shimmerBrush),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Feed video card placeholders matching official YouTube mobile feed rhythm
+                repeat(2) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(shimmerBrush),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(shimmerBrush),
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.92f)
+                                        .height(14.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(shimmerBrush),
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.55f)
+                                        .height(12.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(shimmerBrush),
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(18.dp))
+                    }
                 }
             }
 
-            if (progress in 1..99) {
-                Spacer(modifier = Modifier.weight(1f))
+            // Bottom navigation tab bar skeleton (Home / Shorts / Subscriptions / You)
+            HorizontalDivider(color = Color(0xFFECEEF2))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(4) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(shimmerBrush),
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(width = 36.dp, height = 8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush),
+                        )
+                    }
+                }
             }
         }
     }
@@ -371,7 +396,7 @@ private fun OfflineErrorOverlay(onRetry: () -> Unit) {
             Icon(
                 painter = painterResource(R.drawable.ic_wifi_off),
                 contentDescription = null,
-                tint = TubeRed,
+                tint = YTubeRed,
                 modifier = Modifier.size(56.dp),
             )
             Spacer(modifier = Modifier.height(16.dp))

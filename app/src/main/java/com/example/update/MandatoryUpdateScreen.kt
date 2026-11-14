@@ -35,6 +35,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -55,25 +56,41 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.ui.theme.TubeRed
-import com.example.ui.theme.TubeRedDark
+import com.example.ui.theme.YTubeRed
+import com.example.ui.theme.YTubeRedDark
 
 sealed interface MandatoryUpdateState {
     data object None : MandatoryUpdateState
     data class Available(val release: GitHubReleaseInfo) : MandatoryUpdateState
-    data class DownloadLaunched(val release: GitHubReleaseInfo) : MandatoryUpdateState
-    data class Failed(val release: GitHubReleaseInfo, val message: String) : MandatoryUpdateState
+    data class Downloading(
+        val release: GitHubReleaseInfo,
+        val progressPercent: Int,
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+    ) : MandatoryUpdateState
+
+    data class ReadyToInstall(
+        val release: GitHubReleaseInfo,
+        val apkFilePath: String,
+        val needsInstallPermission: Boolean,
+    ) : MandatoryUpdateState
+
+    data class Failed(
+        val release: GitHubReleaseInfo,
+        val message: String,
+    ) : MandatoryUpdateState
 }
 
 /**
- * Full-screen Material 3 Light Theme mandatory update experience with expressive motion
- * and zero skip/dismiss paths.
+ * Full-screen Material 3 Light Theme mandatory in-app update experience with expressive motion,
+ * live in-app download progress, direct PackageInstaller launch, and zero skip/dismiss paths.
  */
 @Composable
 fun MandatoryUpdateScreen(
     updateState: MandatoryUpdateState,
     currentVersionName: String,
     onStartUpdate: () -> Unit,
+    onInstallReadyApk: () -> Unit,
     onRecheckUpdate: () -> Unit,
 ) {
     // Strictly mandatory update: block system back navigation while visible.
@@ -82,7 +99,8 @@ fun MandatoryUpdateScreen(
     val release = when (updateState) {
         MandatoryUpdateState.None -> return
         is MandatoryUpdateState.Available -> updateState.release
-        is MandatoryUpdateState.DownloadLaunched -> updateState.release
+        is MandatoryUpdateState.Downloading -> updateState.release
+        is MandatoryUpdateState.ReadyToInstall -> updateState.release
         is MandatoryUpdateState.Failed -> updateState.release
     }
 
@@ -156,7 +174,7 @@ fun MandatoryUpdateScreen(
                                 .size(120.dp)
                                 .scale(outerScale)
                                 .clip(CircleShape)
-                                .background(TubeRed.copy(alpha = 0.12f)),
+                                .background(YTubeRed.copy(alpha = 0.12f)),
                         )
                         Box(
                             modifier = Modifier
@@ -164,13 +182,14 @@ fun MandatoryUpdateScreen(
                                 .clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
-                                        colors = listOf(TubeRed, TubeRedDark),
+                                        colors = listOf(YTubeRed, YTubeRedDark),
                                     ),
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
                             val iconRes = when (updateState) {
-                                is MandatoryUpdateState.DownloadLaunched -> R.drawable.ic_cloud_download
+                                is MandatoryUpdateState.Downloading,
+                                is MandatoryUpdateState.ReadyToInstall -> R.drawable.ic_cloud_download
                                 is MandatoryUpdateState.Failed -> R.drawable.ic_error_outline
                                 else -> R.drawable.ic_system_update
                             }
@@ -301,16 +320,16 @@ fun MandatoryUpdateScreen(
                                         .testTag("update_now_button"),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = TubeRed,
+                                        containerColor = YTubeRed,
                                         contentColor = Color.White,
                                     ),
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.ic_open_in_new),
+                                        painter = painterResource(R.drawable.ic_cloud_download),
                                         contentDescription = null,
                                         modifier = Modifier
                                             .size(20.dp)
-                                            .padding(end = 4.dp),
+                                            .padding(end = 6.dp),
                                     )
                                     Text(
                                         text = stringResource(R.string.update_action_now),
@@ -319,28 +338,83 @@ fun MandatoryUpdateScreen(
                                 }
                             }
 
-                            is MandatoryUpdateState.DownloadLaunched -> {
+                            is MandatoryUpdateState.Downloading -> {
+                                val downloadedMb = state.downloadedBytes / (1024f * 1024f)
+                                val totalMb = state.totalBytes / (1024f * 1024f)
+                                val statusText = if (state.progressPercent >= 0 && state.totalBytes > 0L) {
+                                    stringResource(
+                                        R.string.update_downloading_progress,
+                                        state.progressPercent,
+                                        downloadedMb,
+                                        totalMb,
+                                    )
+                                } else {
+                                    stringResource(R.string.update_downloading_indeterminate, downloadedMb)
+                                }
+
                                 Text(
-                                    text = stringResource(R.string.update_install_prompt_hint),
+                                    text = statusText,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                if (state.progressPercent >= 0) {
+                                    LinearProgressIndicator(
+                                        progress = { (state.progressPercent / 100f).coerceIn(0f, 1f) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .testTag("in_app_update_progress"),
+                                        color = YTubeRed,
+                                        trackColor = Color(0xFFECEEF2),
+                                    )
+                                } else {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .testTag("in_app_update_progress"),
+                                        color = YTubeRed,
+                                        trackColor = Color(0xFFECEEF2),
+                                    )
+                                }
+                            }
+
+                            is MandatoryUpdateState.ReadyToInstall -> {
+                                val promptText = if (state.needsInstallPermission) {
+                                    stringResource(R.string.update_permission_hint)
+                                } else {
+                                    stringResource(R.string.update_ready_install_hint)
+                                }
+                                Text(
+                                    text = promptText,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Button(
-                                    onClick = onStartUpdate,
+                                    onClick = onInstallReadyApk,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(52.dp)
-                                        .testTag("update_open_again_button"),
+                                        .height(56.dp)
+                                        .testTag("install_update_button"),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = TubeRed,
+                                        containerColor = YTubeRed,
                                         contentColor = Color.White,
                                     ),
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.update_action_open_again),
+                                        text = if (state.needsInstallPermission) {
+                                            stringResource(R.string.update_action_allow_install)
+                                        } else {
+                                            stringResource(R.string.update_action_install_now)
+                                        },
                                         style = MaterialTheme.typography.titleMedium,
                                     )
                                 }
@@ -363,7 +437,7 @@ fun MandatoryUpdateScreen(
                                         stringResource(R.string.update_error_fallback)
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TubeRedDark,
+                                    color = YTubeRedDark,
                                     textAlign = TextAlign.Center,
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -375,7 +449,7 @@ fun MandatoryUpdateScreen(
                                         .testTag("retry_update_button"),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = TubeRed,
+                                        containerColor = YTubeRed,
                                         contentColor = Color.White,
                                     ),
                                 ) {

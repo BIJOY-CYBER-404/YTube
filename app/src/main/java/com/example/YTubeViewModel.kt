@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cache.ResourceCacheManager
+import com.example.update.ApkDownloadResult
 import com.example.update.GitHubUpdateManager
 import com.example.update.MandatoryUpdateState
 import kotlinx.coroutines.delay
@@ -16,14 +17,15 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
-data class TubeViewUiState(
+data class YTubeUiState(
     val backgroundPlayEnabled: Boolean = true,
     val loadingProgress: Int = 0,
     val isInitialContentReady: Boolean = false,
     val canGoBack: Boolean = false,
     val currentUrl: String = YOUTUBE_HOME_URL,
-    val pageTitle: String = "YouTube",
+    val pageTitle: String = "YTube",
     val isFullscreen: Boolean = false,
     val hasMainFrameError: Boolean = false,
     val isPlayingMedia: Boolean = false,
@@ -37,7 +39,7 @@ data class TubeViewUiState(
     }
 }
 
-class TubeViewViewModel(application: Application) : AndroidViewModel(application) {
+class YTubeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val adBlocker: AdBlocker = AdBlocker.fromAssets(application)
@@ -45,11 +47,11 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
     private val updateManager = GitHubUpdateManager()
 
     private val _uiState = MutableStateFlow(
-        TubeViewUiState(
+        YTubeUiState(
             backgroundPlayEnabled = prefs.getBoolean(KEY_BACKGROUND_PLAY, true),
         ),
     )
-    val uiState: StateFlow<TubeViewUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<YTubeUiState> = _uiState.asStateFlow()
 
     private var lastCheckTimestampMs: Long = 0L
 
@@ -74,6 +76,13 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun checkForRemoteUpdate(force: Boolean = false) {
+        val currentState = _uiState.value.updateState
+        if (currentState is MandatoryUpdateState.Downloading ||
+            currentState is MandatoryUpdateState.ReadyToInstall
+        ) {
+            return
+        }
+
         val repoSlug = resolveRepoSlug() ?: return
         val now = System.currentTimeMillis()
         if (!force && now - lastCheckTimestampMs < UPDATE_CHECK_THROTTLE_MS) return
@@ -107,25 +116,142 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
         return null
     }
 
-    fun launchBrowserUpdate(openIntent: (Intent) -> Unit) {
-        val release = when (val current = _uiState.value.updateState) {
+    fun startInAppUpdate(openInstallerIntent: (Intent) -> Unit) {
+        val current = _uiState.value.updateState
+        if (current is MandatoryUpdateState.Downloading) return
+
+        val release = when (current) {
             is MandatoryUpdateState.Available -> current.release
-            is MandatoryUpdateState.DownloadLaunched -> current.release
+            is MandatoryUpdateState.ReadyToInstall -> current.release
             is MandatoryUpdateState.Failed -> current.release
-            MandatoryUpdateState.None -> return
+            else -> return
         }
 
-        try {
-            openIntent(updateManager.createBrowserDownloadIntent(release))
-            _uiState.update {
-                it.copy(updateState = MandatoryUpdateState.DownloadLaunched(release))
+        val app = getApplication<Application>()
+        _uiState.update {
+            it.copy(
+                updateState = MandatoryUpdateState.Downloading(
+                    release = release,
+                    progressPercent = 0,
+                    downloadedBytes = 0L,
+                    totalBytes = release.apkSizeBytes,
+                ),
+            )
+        }
+
+        viewModelScope.launch {
+            when (
+                val result = updateManager.downloadApkInApp(
+                    context = app,
+                    release = release,
+                    onProgress = { percent, downloaded, total ->
+                        _uiState.update { state ->
+                            if (state.updateState is MandatoryUpdateState.Downloading) {
+                                state.copy(
+                                    updateState = MandatoryUpdateState.Downloading(
+                                        release = release,
+                                        progressPercent = percent,
+                                        downloadedBytes = downloaded,
+                                        totalBytes = total,
+                                    ),
+                                )
+                            } else {
+                                state
+                            }
+                        }
+                    },
+                )
+            ) {
+                is ApkDownloadResult.Success -> {
+                    val canInstall = updateManager.canRequestPackageInstalls(app)
+                    _uiState.update {
+                        it.copy(
+                            updateState = MandatoryUpdateState.ReadyToInstall(
+                                release = release,
+                                apkFilePath = result.apkFile.absolutePath,
+                                needsInstallPermission = !canInstall,
+                            ),
+                        )
+                    }
+                    if (canInstall) {
+                        launchInstallerSafely(
+                            release = release,
+                            apkFile = result.apkFile,
+                            openInstallerIntent = openInstallerIntent,
+                        )
+                    }
+                }
+
+                is ApkDownloadResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            updateState = MandatoryUpdateState.Failed(
+                                release = release,
+                                message = result.message,
+                            ),
+                        )
+                    }
+                }
             }
+        }
+    }
+
+    fun installDownloadedApk(openInstallerIntent: (Intent) -> Unit) {
+        val state = _uiState.value.updateState as? MandatoryUpdateState.ReadyToInstall ?: return
+        val app = getApplication<Application>()
+        val apkFile = File(state.apkFilePath)
+        if (!apkFile.exists()) {
+            startInAppUpdate(openInstallerIntent)
+            return
+        }
+
+        val canInstall = updateManager.canRequestPackageInstalls(app)
+        if (!canInstall) {
+            _uiState.update {
+                it.copy(updateState = state.copy(needsInstallPermission = true))
+            }
+            try {
+                openInstallerIntent(updateManager.createInstallPermissionIntent(app))
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        updateState = MandatoryUpdateState.Failed(
+                            release = state.release,
+                            message = e.localizedMessage ?: "Unable to open install permission settings.",
+                        ),
+                    )
+                }
+            }
+            return
+        }
+
+        _uiState.update {
+            it.copy(updateState = state.copy(needsInstallPermission = false))
+        }
+        launchInstallerSafely(
+            release = state.release,
+            apkFile = apkFile,
+            openInstallerIntent = openInstallerIntent,
+        )
+    }
+
+    fun canRequestPackageInstallsNow(): Boolean {
+        return updateManager.canRequestPackageInstalls(getApplication())
+    }
+
+    private fun launchInstallerSafely(
+        release: com.example.update.GitHubReleaseInfo,
+        apkFile: File,
+        openInstallerIntent: (Intent) -> Unit,
+    ) {
+        try {
+            openInstallerIntent(updateManager.createInstallApkIntent(getApplication(), apkFile))
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
                     updateState = MandatoryUpdateState.Failed(
                         release = release,
-                        message = e.localizedMessage ?: "No browser found to download update.",
+                        message = e.localizedMessage ?: "Unable to launch package installer.",
                     ),
                 )
             }
@@ -173,7 +299,7 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
     }
 
     companion object {
-        private const val PREFS_NAME = "tubeview_prefs"
+        private const val PREFS_NAME = "ytube_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L

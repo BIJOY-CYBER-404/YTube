@@ -7,27 +7,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TubeRed,
+    primary = YTubeRed,
     onPrimary = Color.White,
-    primaryContainer = TubeRedDark,
+    primaryContainer = YTubeRedDark,
     onPrimaryContainer = Color.White,
     secondary = ShieldEmerald,
-    onSecondary = TubeObsidian,
+    onSecondary = YTubeObsidian,
     secondaryContainer = ShieldEmeraldContainer,
     onSecondaryContainer = ShieldEmerald,
-    background = TubeObsidian,
-    onBackground = TubeTextPrimary,
-    surface = TubeSurface,
-    onSurface = TubeTextPrimary,
-    surfaceVariant = TubeSurfaceElevated,
-    onSurfaceVariant = TubeTextMuted,
-    outline = TubeOutline,
+    background = YTubeObsidian,
+    onBackground = YTubeTextPrimary,
+    surface = YTubeSurface,
+    onSurface = YTubeTextPrimary,
+    surfaceVariant = YTubeSurfaceElevated,
+    onSurfaceVariant = YTubeTextMuted,
+    outline = YTubeOutline,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TubeRedDark,
+    primary = YTubeRedDark,
     onPrimary = Color.White,
-    primaryContainer = TubeRed,
+    primaryContainer = YTubeRed,
     onPrimaryContainer = Color.White,
     secondary = ShieldEmerald,
     onSecondary = Color.White,
@@ -40,7 +40,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun TubeViewTheme(
+fun YTubeTheme(
     darkTheme: Boolean = false,
     content: @Composable () -> Unit,
 ) {

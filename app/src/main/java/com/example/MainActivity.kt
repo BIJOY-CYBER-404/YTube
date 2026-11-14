@@ -30,13 +30,13 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.theme.TubeViewTheme
+import com.example.ui.theme.YTubeTheme
 import com.example.update.MandatoryUpdateScreen
 import com.example.update.MandatoryUpdateState
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: TubeViewViewModel by viewModels()
+    private val viewModel: YTubeViewModel by viewModels()
 
     private lateinit var webView: BackgroundAudioWebView
     private lateinit var fullscreenContainer: FrameLayout
@@ -62,10 +62,10 @@ class MainActivity : ComponentActivity() {
 
         webView = createConfiguredWebView()
         MediaPlaybackService.PlayerBridge.attach(webView)
-        webView.loadUrl(TubeViewUiState.YOUTUBE_HOME_URL)
+        webView.loadUrl(YTubeUiState.YOUTUBE_HOME_URL)
 
         setContent {
-            TubeViewTheme(darkTheme = false) {
+            YTubeTheme(darkTheme = false) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
                 NotificationPermissionPrompt(
@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (!updateActive) {
-                        TubeViewScreen(
+                        YTubeScreen(
                             uiState = uiState,
                             webView = webView,
                             fullscreenContainer = fullscreenContainer,
@@ -116,7 +116,12 @@ class MainActivity : ComponentActivity() {
                             updateState = uiState.updateState,
                             currentVersionName = BuildConfig.VERSION_NAME,
                             onStartUpdate = {
-                                viewModel.launchBrowserUpdate { intent ->
+                                viewModel.startInAppUpdate { intent ->
+                                    startActivity(intent)
+                                }
+                            },
+                            onInstallReadyApk = {
+                                viewModel.installDownloadedApk { intent ->
                                     startActivity(intent)
                                 }
                             },
@@ -136,7 +141,16 @@ class MainActivity : ComponentActivity() {
             webView.onResume()
             wasPausedForBgOff = false
         }
-        if (viewModel.uiState.value.updateState == MandatoryUpdateState.None) {
+
+        val currentUpdate = viewModel.uiState.value.updateState
+        if (currentUpdate is MandatoryUpdateState.ReadyToInstall &&
+            currentUpdate.needsInstallPermission &&
+            viewModel.canRequestPackageInstallsNow()
+        ) {
+            viewModel.installDownloadedApk { intent ->
+                startActivity(intent)
+            }
+        } else if (currentUpdate == MandatoryUpdateState.None) {
             viewModel.checkForRemoteUpdate(force = false)
         }
     }
@@ -146,7 +160,7 @@ class MainActivity : ComponentActivity() {
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
         webView.keepAliveInBackground = bgEnabled
 
-        // CRITICAL LIFECYCLE RULE (FR2.5):
+        // CRITICAL LIFECYCLE RULE:
         // NEVER call webView.onPause() while background play is enabled — not here and not in onStop().
         if (bgEnabled) {
             if (viewModel.uiState.value.isPlayingMedia) {
@@ -194,6 +208,7 @@ class MainActivity : ComponentActivity() {
             overScrollMode = View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
+            isNestedScrollingEnabled = true
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -211,6 +226,7 @@ class MainActivity : ComponentActivity() {
                 loadsImagesAutomatically = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
+                setSupportZoom(false)
                 builtInZoomControls = false
                 displayZoomControls = false
                 allowFileAccess = false
@@ -225,7 +241,7 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
             }
-            addJavascriptInterface(TubeViewJsBridge(), "TubeViewBridge")
+            addJavascriptInterface(YTubeJsBridge(), "YTubeBridge")
         }
 
         CookieManager.getInstance().apply {
@@ -245,8 +261,6 @@ class MainActivity : ComponentActivity() {
                 viewModel.setMainFrameError(hasError)
             },
             onFirstVisualCommit = {
-                // Keep skeleton up briefly until DOM feed mounts or fallback timer expires;
-                // if progress is already complete, clear immediately.
                 if (viewModel.uiState.value.loadingProgress >= 90) {
                     viewModel.markInitialContentReady()
                 }
@@ -311,7 +325,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private inner class TubeViewJsBridge {
+    private inner class YTubeJsBridge {
         @JavascriptInterface
         fun onFirstContentReady() {
             runOnUiThread {
