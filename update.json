@@ -4,5 +4,5 @@
   "mandatory": true,
   "title": "YTube v1.2.2",
   "releaseNotes": "Configured BIJOY-CYBER-404/YTube remote update source and light Material 3 update screen.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/releases/latest"
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.2.2.apk"
 }

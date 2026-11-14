@@ -232,7 +232,7 @@ class GitHubUpdateManager {
                     val cleanPath = rawApkUrl.trimStart('/')
                     "https://github.com/$repoSlug/raw/$branch/$cleanPath"
                 }
-                repoSlug.isNotBlank() -> "https://github.com/$repoSlug/releases/latest"
+                repoSlug.isNotBlank() -> "https://github.com/$repoSlug/releases"
                 else -> return null
             }
 

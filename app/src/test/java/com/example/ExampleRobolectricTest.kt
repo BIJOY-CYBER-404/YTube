@@ -146,7 +146,7 @@ class ExampleRobolectricTest {
             repoSlug = "owner/YTube",
         )
         assertNotNull(parsedManifest)
-        assertEquals("https://github.com/owner/YTube/releases/latest", parsedManifest?.apkDownloadUrl)
+        assertEquals("https://github.com/owner/YTube/releases", parsedManifest?.apkDownloadUrl)
 
         val prereleaseArray = """
             [
