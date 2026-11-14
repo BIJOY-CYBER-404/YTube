@@ -215,6 +215,7 @@ class ExampleRobolectricTest {
 
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/watch?v=dQw4w9WgXcQ")))
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://youtu.be/dQw4w9WgXcQ")))
+        assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://www.youtube.com/embed/dQw4w9WgXcQ")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/results?search_query=music")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/shorts/abc123")))
     }
@@ -310,7 +311,7 @@ class ExampleRobolectricTest {
         assertNull(ResourceCacheManager.classifyAsset("https://m.youtube.com/shorts/xyz123?feature=share"))
 
         val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = false, isWatchRole = true)
-        assertTrue(watchScript.contains("v0.readyState >= 2 || hasWatchMeta"))
+        assertTrue(watchScript.contains("v0 || hasWatchMeta"))
         assertTrue(watchScript.contains("videoNode.playsInline = true"))
         assertFalse(watchScript.contains("rootMargin: '600px 0px'"))
         assertFalse(watchScript.contains("[class*=\"player-placeholder\"]"))

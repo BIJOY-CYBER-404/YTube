@@ -401,11 +401,16 @@ object JsInjector {
                         if (!window.__ytubeWatchReadySignaled) {
                             collapseWatchSpacing();
                             var v0 = document.querySelector('video');
-                            if (!v0 || v0.muted || v0.volume < 1.0) {
-                                triggerUnmute();
+                            if (v0) {
+                                monitorVideoAudio(v0);
+                                if (v0.paused) {
+                                    var p = v0.play();
+                                    if (p && p.catch) p.catch(function(){});
+                                }
                             }
-                            var hasWatchMeta = Boolean(document.querySelector('ytm-slim-video-metadata-section-renderer, ytm-video-primary-info-renderer, h2.slim-video-information-title'));
-                            var hasWatchDom = Boolean(v0 && (v0.readyState >= 2 || hasWatchMeta));
+                            triggerUnmute();
+                            var hasWatchMeta = Boolean(document.querySelector('ytm-slim-video-metadata-section-renderer, ytm-video-primary-info-renderer, h2.slim-video-information-title, ytm-watch, #player-container-id'));
+                            var hasWatchDom = Boolean(v0 || hasWatchMeta);
                             if (hasWatchDom && window.YTubeBridge && typeof window.YTubeBridge.onWatchContentReady === 'function') {
                                 window.__ytubeWatchReadySignaled = true;
                                 window.YTubeBridge.onWatchContentReady();

@@ -261,7 +261,7 @@ class AdBlockingWebViewClient(
             val isYt = host == "youtube.com" || host.endsWith(".youtube.com")
             if (!isYt) return false
             val path = uri.path.orEmpty()
-            return path.equals("/watch", ignoreCase = true) && !uri.getQueryParameter("v").isNullOrBlank()
+            return (path.equals("/watch", ignoreCase = true) && !uri.getQueryParameter("v").isNullOrBlank()) || path.contains("/embed/")
         }
 
         fun isAuthHost(host: String): Boolean {

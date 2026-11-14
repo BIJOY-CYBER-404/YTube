@@ -1,6 +1,6 @@
 # YTube
 
-**YTube** (`com.ytube.bk`, `v1.4.15`, `versionCode 22`) is a lightweight Android YouTube client (`https://m.youtube.com`) that automatically matches your device Light/Dark theme, with ad blocking, persistent in-app Google sign-in, background audio playback, Shake-to-Report Debug screen, native HTTP/3 + Service Worker performance, pull-to-refresh, and mandatory inside-the-app GitHub updates.
+**YTube** (`com.ytube.bk`, `v1.4.17`, `versionCode 24`) is a lightweight Android YouTube client (`https://m.youtube.com`) that automatically matches your device Light/Dark theme, with ad blocking, persistent in-app Google sign-in, background audio playback, Shake-to-Report Debug screen, native HTTP/3 + Service Worker performance, pull-to-refresh, and mandatory inside-the-app GitHub updates.
 
 ## Features
 
