@@ -11,26 +11,23 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.example.cache.ResourceCacheManager
 import java.io.ByteArrayInputStream
 import java.util.Locale
 
 /**
- * WebViewClient enforcing network-level ad blocking via [AdBlocker], injecting
- * SPA-resilient ad/visibility scripts via [JsInjector], and routing external links
- * out to the system browser.
- *
- * Honest limitation note:
- * - Google blocks OAuth sign-in inside embedded WebViews (disallowed_useragent),
- *   so TubeView is designed for signed-out YouTube browsing.
- * - Server-side ads baked directly into googlevideo.com video segments cannot be
- *   intercepted here and rely on JsInjector's skip/fast-forward fallback.
+ * WebViewClient enforcing network-level ad blocking via [AdBlocker], serving cached
+ * static assets via [ResourceCacheManager], injecting SPA-resilient ad/visibility scripts
+ * via [JsInjector], and routing external links out to the system browser.
  */
 class AdBlockingWebViewClient(
     private val context: Context,
     private val adBlocker: AdBlocker,
+    private val resourceCache: ResourceCacheManager? = null,
     private val isBackgroundPlayEnabled: () -> Boolean,
     private val onPageStateChanged: (url: String?, title: String?, canGoBack: Boolean) -> Unit,
     private val onMainFrameError: (hasError: Boolean) -> Unit,
+    private val onFirstVisualCommit: () -> Unit = {},
     private val onRenderProcessCrashed: () -> Unit = {},
 ) : WebViewClient() {
 
@@ -46,6 +43,11 @@ class AdBlockingWebViewClient(
                 "utf-8",
                 ByteArrayInputStream(ByteArray(0)),
             )
+        }
+        if (request != null) {
+            resourceCache?.intercept(request)?.let { cached ->
+                return cached
+            }
         }
         return super.shouldInterceptRequest(view, request)
     }
@@ -79,9 +81,16 @@ class AdBlockingWebViewClient(
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
 
+    override fun onPageCommitVisible(view: WebView?, url: String?) {
+        super.onPageCommitVisible(view, url)
+        injectProtectionScripts(view)
+        onFirstVisualCommit()
+    }
+
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         injectProtectionScripts(view)
+        onFirstVisualCommit()
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
 

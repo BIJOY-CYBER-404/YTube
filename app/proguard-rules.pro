@@ -7,3 +7,4 @@
 
 -keep class com.example.MediaPlaybackService { *; }
 -keep class com.example.BackgroundAudioWebView { *; }
+-keep class com.example.YTubeApplication { *; }

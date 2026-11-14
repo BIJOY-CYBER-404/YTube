@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.cache.ResourceCacheManager
 import com.example.update.GitHubUpdateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -171,5 +172,26 @@ class ExampleRobolectricTest {
             "https://github.com/owner/YTube/releases/tag/release-1.3.0",
             parsedArray?.apkDownloadUrl,
         )
+    }
+
+    @Test
+    fun `resource cache caches static bundles and thumbnails but skips streams and apis`() {
+        assertTrue(ResourceCacheManager.isCacheableAssetUrl("https://i.ytimg.com/vi/abc123/hq720.jpg"))
+        assertTrue(ResourceCacheManager.isCacheableAssetUrl("https://yt3.ggpht.com/ytc/avatar=s68-c-k.webp"))
+        assertTrue(ResourceCacheManager.isCacheableAssetUrl("https://m.youtube.com/s/player/12345/base.js"))
+        assertTrue(ResourceCacheManager.isCacheableAssetUrl("https://fonts.gstatic.com/s/roboto/v30/font.woff2"))
+
+        assertFalse(ResourceCacheManager.isCacheableAssetUrl("https://rr1---sn-test.googlevideo.com/videoplayback?id=1"))
+        assertFalse(ResourceCacheManager.isCacheableAssetUrl("https://m.youtube.com/youtubei/v1/browse"))
+        assertFalse(ResourceCacheManager.isCacheableAssetUrl("https://m.youtube.com/watch?v=abc123"))
+        assertFalse(ResourceCacheManager.isCacheableAssetUrl("https://accounts.google.com/ServiceLogin"))
+    }
+
+    @Test
+    fun `js injector includes native touch styling and first content ready signal`() {
+        val script = JsInjector.buildProtectionScript(backgroundPlayEnabled = true)
+        assertTrue(script.contains("-webkit-tap-highlight-color: transparent"))
+        assertTrue(script.contains("onFirstContentReady"))
+        assertTrue(script.contains("rel = 'prefetch'"))
     }
 }

@@ -61,7 +61,7 @@ object JsInjector {
                     window.addEventListener('pagehide', blockEventIfBg, true);
                 }
 
-                // 2. Cosmetic ad-container hiding CSS
+                // 2. Cosmetic ad-container hiding + native app feel CSS (no browser highlight, text-selection, or overscroll flash)
                 if (!document.getElementById('tubeview-adblock-css')) {
                     var style = document.createElement('style');
                     style.id = 'tubeview-adblock-css';
@@ -81,9 +81,61 @@ object JsInjector {
                         'ytm-ad-slot-renderer',
                         'ad-slot-renderer',
                         '#masthead-ad'
-                    ].join(', ') + ' { display: none !important; visibility: hidden !important; height: 0 !important; }';
+                    ].join(', ') + ' { display: none !important; visibility: hidden !important; height: 0 !important; }\n' +
+                    '* { -webkit-tap-highlight-color: transparent !important; }\n' +
+                    'html, body { overscroll-behavior-y: contain !important; }\n' +
+                    '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }';
                     (document.head || document.documentElement).appendChild(style);
                 }
+
+                // 2b. Preconnect critical media/thumbnail origins & prefetch tapped watch/shorts links
+                if (!window.__ytubePreconnectDone) {
+                    window.__ytubePreconnectDone = true;
+                    try {
+                        var head = document.head || document.documentElement;
+                        ['https://i.ytimg.com', 'https://yt3.ggpht.com', 'https://www.youtube.com', 'https://fonts.gstatic.com'].forEach(function(origin) {
+                            var link = document.createElement('link');
+                            link.rel = 'preconnect';
+                            link.href = origin;
+                            link.crossOrigin = 'anonymous';
+                            head.appendChild(link);
+                        });
+                    } catch (e) {}
+
+                    var lastPrefetched = '';
+                    document.addEventListener('touchstart', function(ev) {
+                        try {
+                            var target = ev.target;
+                            var anchor = target && target.closest ? target.closest('a[href]') : null;
+                            if (!anchor) return;
+                            var href = anchor.getAttribute('href') || '';
+                            if ((href.indexOf('/watch') === 0 || href.indexOf('/shorts') === 0) && href !== lastPrefetched) {
+                                lastPrefetched = href;
+                                var oldPrefetch = document.getElementById('ytube-hover-prefetch');
+                                if (oldPrefetch) oldPrefetch.remove();
+                                var pf = document.createElement('link');
+                                pf.id = 'ytube-hover-prefetch';
+                                pf.rel = 'prefetch';
+                                pf.as = 'document';
+                                pf.href = href;
+                                (document.head || document.documentElement).appendChild(pf);
+                            }
+                        } catch (e) {}
+                    }, { passive: true });
+                }
+
+                // 2c. Signal Android once actual feed/video UI nodes have mounted so splash skeleton dissolves cleanly
+                var notifyContentReady = function() {
+                    if (window.__ytubeFirstContentSignaled) return;
+                    var hasContent = Boolean(
+                        document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-reel-video-renderer, ytm-watch, #player-container-id, video')
+                    );
+                    if (hasContent && window.TubeViewBridge && typeof window.TubeViewBridge.onFirstContentReady === 'function') {
+                        window.__ytubeFirstContentSignaled = true;
+                        window.TubeViewBridge.onFirstContentReady();
+                    }
+                };
+                notifyContentReady();
 
                 // 3. Playback control hooks for MediaPlaybackService MediaSession
                 window.__tubeviewPlay = function() {
@@ -120,6 +172,8 @@ object JsInjector {
 
                     window.__tubeviewAdTimer = setInterval(function() {
                         try {
+                            notifyContentReady();
+
                             // Auto-click skip buttons
                             var skipSelectors = [
                                 '.ytp-ad-skip-button',
@@ -177,7 +231,7 @@ object JsInjector {
                                     var key = isPlaying + '|' + rawTitle + '|' + rawChannel;
                                     if (key !== window.__tubeviewLastReported) {
                                         window.__tubeviewLastReported = key;
-                                        window.TubeViewBridge.onPlaybackStateChanged(isPlaying, rawTitle || 'TubeView Audio', rawChannel || 'YouTube');
+                                        window.TubeViewBridge.onPlaybackStateChanged(isPlaying, rawTitle || 'YTube Audio', rawChannel || 'YouTube');
                                     }
                                 }
                             }

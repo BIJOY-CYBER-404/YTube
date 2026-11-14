@@ -94,6 +94,11 @@ class MainActivity : ComponentActivity() {
                             fullscreenContainer = fullscreenContainer,
                             onReloadClick = {
                                 viewModel.setMainFrameError(false)
+                                webView.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
+                                    WebSettings.LOAD_DEFAULT
+                                } else {
+                                    WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                }
                                 webView.reload()
                             },
                         )
@@ -186,6 +191,9 @@ class MainActivity : ComponentActivity() {
         val view = BackgroundAudioWebView(this).apply {
             keepAliveInBackground = initialBg
             setBackgroundColor(AndroidColor.WHITE)
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -193,6 +201,12 @@ class MainActivity : ComponentActivity() {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
+                databaseEnabled = true
+                cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
+                    WebSettings.LOAD_DEFAULT
+                } else {
+                    WebSettings.LOAD_CACHE_ELSE_NETWORK
+                }
                 mediaPlaybackRequiresUserGesture = false
                 loadsImagesAutomatically = true
                 useWideViewPort = true
@@ -222,12 +236,20 @@ class MainActivity : ComponentActivity() {
         view.webViewClient = AdBlockingWebViewClient(
             context = this,
             adBlocker = viewModel.adBlocker,
+            resourceCache = viewModel.resourceCache,
             isBackgroundPlayEnabled = { viewModel.uiState.value.backgroundPlayEnabled },
             onPageStateChanged = { url, title, canGoBack ->
                 viewModel.updatePageState(url, title, canGoBack)
             },
             onMainFrameError = { hasError ->
                 viewModel.setMainFrameError(hasError)
+            },
+            onFirstVisualCommit = {
+                // Keep skeleton up briefly until DOM feed mounts or fallback timer expires;
+                // if progress is already complete, clear immediately.
+                if (viewModel.uiState.value.loadingProgress >= 90) {
+                    viewModel.markInitialContentReady()
+                }
             },
             onRenderProcessCrashed = {
                 viewModel.setMainFrameError(true)
@@ -290,6 +312,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private inner class TubeViewJsBridge {
+        @JavascriptInterface
+        fun onFirstContentReady() {
+            runOnUiThread {
+                viewModel.markInitialContentReady()
+            }
+        }
+
         @JavascriptInterface
         fun onPlaybackStateChanged(isPlaying: Boolean, title: String?, channel: String?) {
             val cleanTitle = title?.takeIf { it.isNotBlank() } ?: "YTube Audio"

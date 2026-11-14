@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cache.ResourceCacheManager
 import com.example.update.GitHubUpdateManager
 import com.example.update.MandatoryUpdateState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 data class TubeViewUiState(
     val backgroundPlayEnabled: Boolean = true,
     val loadingProgress: Int = 0,
+    val isInitialContentReady: Boolean = false,
     val canGoBack: Boolean = false,
     val currentUrl: String = YOUTUBE_HOME_URL,
     val pageTitle: String = "YouTube",
@@ -38,6 +41,7 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val adBlocker: AdBlocker = AdBlocker.fromAssets(application)
+    val resourceCache: ResourceCacheManager = ResourceCacheManager.getInstance(application)
     private val updateManager = GitHubUpdateManager()
 
     private val _uiState = MutableStateFlow(
@@ -56,7 +60,17 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
             }
             .launchIn(viewModelScope)
 
+        viewModelScope.launch {
+            delay(PRELOAD_SKELETON_MAX_MS)
+            markInitialContentReady()
+        }
+
         checkForRemoteUpdate(force = true)
+    }
+
+    fun markInitialContentReady() {
+        if (_uiState.value.isInitialContentReady) return
+        _uiState.update { it.copy(isInitialContentReady = true) }
     }
 
     fun checkForRemoteUpdate(force: Boolean = false) {
@@ -162,5 +176,6 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
         private const val PREFS_NAME = "tubeview_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
+        private const val PRELOAD_SKELETON_MAX_MS = 2_400L
     }
 }
