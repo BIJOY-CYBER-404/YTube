@@ -4,5 +4,6 @@
   "mandatory": true,
   "title": "YTube v1.4.22",
   "releaseNotes": "Removed aggressive player container CSS overrides and element-collapsing rules so YouTube's mobile player DOM mounts and initializes natively without video unavailability or configuration errors.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.22.apk"
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.22.apk",
+  "apkSizeBytes": 12227158
 }

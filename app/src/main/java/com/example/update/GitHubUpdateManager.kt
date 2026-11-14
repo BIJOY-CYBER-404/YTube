@@ -81,120 +81,128 @@ class GitHubUpdateManager {
         val partFile = File(updatesDir, "$safeFileName.part")
         val targetFile = File(updatesDir, safeFileName)
 
-        var currentUrl = release.apkDownloadUrl
-        var connection: HttpURLConnection? = null
-        try {
-            var redirects = 0
-            while (redirects < MAX_REDIRECTS) {
-                if (!currentUrl.startsWith("https://", ignoreCase = true)) {
-                    return@withContext ApkDownloadResult.Error("Insecure update URL rejected.")
-                }
-                connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    instanceFollowRedirects = false
-                    useCaches = false
-                    connectTimeout = 15_000
-                    readTimeout = 30_000
-                    setRequestProperty("Cache-Control", "no-cache")
-                    setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
-                    setRequestProperty("User-Agent", "YTube-Android/${BuildConfig.VERSION_NAME}")
-                }
-                val code = connection.responseCode
-                if (code == HttpURLConnection.HTTP_MOVED_PERM ||
-                    code == HttpURLConnection.HTTP_MOVED_TEMP ||
-                    code == HttpURLConnection.HTTP_SEE_OTHER ||
-                    code == 307 ||
-                    code == 308
-                ) {
-                    val location = connection.getHeaderField("Location")
-                    connection.disconnect()
-                    connection = null
-                    if (location.isNullOrBlank()) {
-                        return@withContext ApkDownloadResult.Error("Update redirect target missing.")
-                    }
-                    currentUrl = URL(URL(currentUrl), location).toString()
-                    redirects++
-                } else {
-                    break
-                }
-            }
-
-            val activeConn = connection
-                ?: return@withContext ApkDownloadResult.Error("Unable to reach update server.")
-
-            if (activeConn.responseCode != HttpURLConnection.HTTP_OK) {
-                return@withContext ApkDownloadResult.Error(
-                    "Download failed (HTTP ${activeConn.responseCode}).",
-                )
-            }
-
-            val totalBytes = if (activeConn.contentLengthLong > 0L) {
-                activeConn.contentLengthLong
-            } else {
-                release.apkSizeBytes
-            }
-
-            var downloaded = 0L
-            var lastReportedPercent = -1
-            val headerBytes = ByteArray(4)
-            var headerCaptured = 0
-
-            activeConn.inputStream.use { input ->
-                FileOutputStream(partFile).use { output ->
-                    val buffer = ByteArray(16 * 1024)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        if (headerCaptured < 4) {
-                            val toCopy = minOf(read, 4 - headerCaptured)
-                            System.arraycopy(buffer, 0, headerBytes, headerCaptured, toCopy)
-                            headerCaptured += toCopy
-                        }
-                        output.write(buffer, 0, read)
-                        downloaded += read
-
-                        val percent = if (totalBytes > 0L) {
-                            ((downloaded * 100L) / totalBytes).toInt().coerceIn(0, 99)
-                        } else {
-                            -1
-                        }
-                        if (percent != lastReportedPercent || percent == -1) {
-                            lastReportedPercent = percent
-                            onProgress(percent, downloaded, totalBytes)
-                        }
-                    }
-                    output.flush()
-                }
-            }
-
-            // Validate ZIP/APK magic header (PK\x03\x04) so HTML pages are never sent to PackageInstaller.
-            val isValidApkMagic = headerCaptured == 4 &&
-                headerBytes[0] == 0x50.toByte() &&
-                headerBytes[1] == 0x4B.toByte() &&
-                headerBytes[2] == 0x03.toByte() &&
-                headerBytes[3] == 0x04.toByte()
-
-            if (!isValidApkMagic || downloaded < 10_000L) {
-                partFile.delete()
-                return@withContext ApkDownloadResult.Error(
-                    "Downloaded file is not a valid APK package. Please check the GitHub APK link.",
-                )
-            }
-
-            if (!partFile.renameTo(targetFile)) {
-                partFile.copyTo(targetFile, overwrite = true)
-                partFile.delete()
-            }
-            onProgress(100, downloaded, downloaded)
-            ApkDownloadResult.Success(targetFile)
-        } catch (e: Exception) {
-            partFile.delete()
-            ApkDownloadResult.Error(
-                e.localizedMessage ?: "Unable to download update inside app.",
-            )
-        } finally {
-            connection?.disconnect()
+        val urlsToTry = mutableListOf<String>()
+        urlsToTry.add(release.apkDownloadUrl)
+        if (release.apkDownloadUrl.contains("/raw/main/")) {
+            urlsToTry.add(release.apkDownloadUrl.replace("/raw/main/", "/raw/master/"))
+        } else if (release.apkDownloadUrl.contains("/raw/master/")) {
+            urlsToTry.add(release.apkDownloadUrl.replace("/raw/master/", "/raw/main/"))
         }
+        if (release.apkDownloadUrl.contains("github.com/")) {
+            urlsToTry.add("https://github.com/BIJOY-CYBER-404/YTube/releases/download/v${release.versionName}/${release.apkFileName}")
+            urlsToTry.add("https://github.com/BIJOY-CYBER-404/YTube/releases/latest/download/${release.apkFileName}")
+        }
+
+        var lastErrorCode = 404
+        for (initialUrl in urlsToTry) {
+            var currentUrl = initialUrl
+            var connection: HttpURLConnection? = null
+            try {
+                var redirects = 0
+                while (redirects < MAX_REDIRECTS) {
+                    if (!currentUrl.startsWith("https://", ignoreCase = true)) {
+                        break
+                    }
+                    connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        instanceFollowRedirects = false
+                        useCaches = false
+                        connectTimeout = 15_000
+                        readTimeout = 30_000
+                        setRequestProperty("Cache-Control", "no-cache")
+                        setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
+                        setRequestProperty("User-Agent", "YTube-Android/${BuildConfig.VERSION_NAME}")
+                    }
+                    val code = connection.responseCode
+                    if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                        code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                        code == HttpURLConnection.HTTP_SEE_OTHER ||
+                        code == 307 ||
+                        code == 308
+                    ) {
+                        val location = connection.getHeaderField("Location")
+                        connection.disconnect()
+                        connection = null
+                        if (location.isNullOrBlank()) {
+                            break
+                        }
+                        currentUrl = URL(URL(currentUrl), location).toString()
+                        redirects++
+                    } else {
+                        break
+                    }
+                }
+
+                val activeConn = connection
+                if (activeConn != null && activeConn.responseCode == HttpURLConnection.HTTP_OK) {
+                    val totalBytes = if (activeConn.contentLengthLong > 0L) {
+                        activeConn.contentLengthLong
+                    } else {
+                        release.apkSizeBytes
+                    }
+
+                    var downloaded = 0L
+                    var lastReportedPercent = -1
+                    val headerBytes = ByteArray(4)
+                    var headerCaptured = 0
+
+                    activeConn.inputStream.use { input ->
+                        FileOutputStream(partFile).use { output ->
+                            val buffer = ByteArray(16 * 1024)
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read <= 0) break
+                                if (headerCaptured < 4) {
+                                    val toCopy = minOf(read, 4 - headerCaptured)
+                                    System.arraycopy(buffer, 0, headerBytes, headerCaptured, toCopy)
+                                    headerCaptured += toCopy
+                                }
+                                output.write(buffer, 0, read)
+                                downloaded += read
+
+                                val percent = if (totalBytes > 0L) {
+                                    ((downloaded * 100L) / totalBytes).toInt().coerceIn(0, 99)
+                                } else {
+                                    -1
+                                }
+                                if (percent != lastReportedPercent || percent == -1) {
+                                    lastReportedPercent = percent
+                                    onProgress(percent, downloaded, totalBytes)
+                                }
+                            }
+                            output.flush()
+                        }
+                    }
+
+                    // Validate ZIP/APK magic header (PK\x03\x04) so HTML pages are never sent to PackageInstaller.
+                    val isValidApkMagic = headerCaptured == 4 &&
+                        headerBytes[0] == 0x50.toByte() &&
+                        headerBytes[1] == 0x4B.toByte() &&
+                        headerBytes[2] == 0x03.toByte() &&
+                        headerBytes[3] == 0x04.toByte()
+
+                    if (isValidApkMagic && downloaded >= 10_000L) {
+                        if (!partFile.renameTo(targetFile)) {
+                            partFile.copyTo(targetFile, overwrite = true)
+                            partFile.delete()
+                        }
+                        onProgress(100, downloaded, downloaded)
+                        activeConn.disconnect()
+                        return@withContext ApkDownloadResult.Success(targetFile)
+                    } else {
+                        partFile.delete()
+                    }
+                } else if (activeConn != null) {
+                    lastErrorCode = activeConn.responseCode
+                }
+                connection?.disconnect()
+            } catch (_: Exception) {
+                connection?.disconnect()
+                partFile.delete()
+            }
+        }
+
+        return@withContext ApkDownloadResult.Error("Download failed (HTTP $lastErrorCode).")
     }
 
     fun canRequestPackageInstalls(context: Context): Boolean {
