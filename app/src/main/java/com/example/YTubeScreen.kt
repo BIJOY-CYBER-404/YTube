@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -120,8 +121,10 @@ fun extractYouTubeVideoId(url: String?): String? {
 @Composable
 fun YTubeScreen(
     uiState: YTubeUiState,
-    feedWebView: BackgroundAudioWebView,
-    watchWebView: BackgroundAudioWebView,
+    feedWebViewProvider: () -> BackgroundAudioWebView,
+    feedRecoveryEpoch: Int,
+    watchWebViewProvider: () -> BackgroundAudioWebView,
+    watchRecoveryEpoch: Int,
     fullscreenContainer: FrameLayout,
     onReloadClick: () -> Unit,
     onMinimizeWatch: () -> Unit,
@@ -190,56 +193,59 @@ fun YTubeScreen(
                 }
 
                 // 1. Feed WebView (Home / Shorts / Subscriptions / Search / Sign-In)
-                AndroidView(
-                    factory = { ctx ->
-                        SwipeRefreshLayout(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
-                            setOnChildScrollUpCallback { _, _ ->
-                                feedWebView.scrollY > 0 || feedWebView.canScrollVertically(-1)
-                            }
-                            setOnRefreshListener {
-                                onReloadClick()
-                            }
-                            (feedWebView.parent as? ViewGroup)?.removeView(feedWebView)
-                            addView(
-                                feedWebView,
-                                ViewGroup.LayoutParams(
+                key(feedRecoveryEpoch) {
+                    val activeFeedWebView = feedWebViewProvider()
+                    AndroidView(
+                        factory = { ctx ->
+                            SwipeRefreshLayout(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT,
-                                ),
+                                )
+                                setOnChildScrollUpCallback { _, _ ->
+                                    activeFeedWebView.scrollY > 0 || activeFeedWebView.canScrollVertically(-1)
+                                }
+                                setOnRefreshListener {
+                                    onReloadClick()
+                                }
+                                (activeFeedWebView.parent as? ViewGroup)?.removeView(activeFeedWebView)
+                                addView(
+                                    activeFeedWebView,
+                                    ViewGroup.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ),
+                                )
+                            }
+                        },
+                        update = { swipeRefresh ->
+                            swipeRefresh.setProgressBackgroundColorSchemeColor(
+                                if (isDark) AndroidColor.parseColor("#212121") else AndroidColor.WHITE,
                             )
-                        }
-                    },
-                    update = { swipeRefresh ->
-                        swipeRefresh.setProgressBackgroundColorSchemeColor(
-                            if (isDark) AndroidColor.parseColor("#212121") else AndroidColor.WHITE,
-                        )
-                        swipeRefresh.setColorSchemeColors(
-                            AndroidColor.parseColor("#FF2A36"),
-                            if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
-                        )
-                        val url = uiState.currentUrl
-                        val isShorts = url.contains("/shorts", ignoreCase = true)
-                        val isAuth = url.contains("accounts.google.", ignoreCase = true) ||
-                            url.contains("accounts.youtube.", ignoreCase = true)
-                        swipeRefresh.isEnabled =
-                            !uiState.isFullscreen &&
-                                uiState.playerMode != YTubePlayerMode.EXPANDED &&
-                                !isShorts &&
-                                !isAuth
-                        if (swipeRefresh.isRefreshing &&
-                            (uiState.loadingProgress >= 90 || uiState.hasMainFrameError)
-                        ) {
-                            swipeRefresh.isRefreshing = false
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("youtube_webview_refresh"),
-                )
+                            swipeRefresh.setColorSchemeColors(
+                                AndroidColor.parseColor("#FF2A36"),
+                                if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
+                            )
+                            val url = uiState.currentUrl
+                            val isShorts = url.contains("/shorts", ignoreCase = true)
+                            val isAuth = url.contains("accounts.google.", ignoreCase = true) ||
+                                url.contains("accounts.youtube.", ignoreCase = true)
+                            swipeRefresh.isEnabled =
+                                !uiState.isFullscreen &&
+                                    uiState.playerMode != YTubePlayerMode.EXPANDED &&
+                                    !isShorts &&
+                                    !isAuth
+                            if (swipeRefresh.isRefreshing &&
+                                (uiState.loadingProgress >= 90 || uiState.hasMainFrameError)
+                            ) {
+                                swipeRefresh.isRefreshing = false
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("youtube_webview_refresh"),
+                    )
+                }
 
                 val showPreloadSkeleton =
                     !uiState.isInitialContentReady &&
@@ -281,27 +287,34 @@ fun YTubeScreen(
                         label = "watch_alpha",
                     )
 
-                    // Watch WebView container (Visible when Expanded; when Minimized, hidden visually but kept active in background for audio/video stream continuity)
+                    // Watch WebView container (Visible when Expanded; when Minimized, kept compact & alive in background without allocating full-screen GPU layer)
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(if (isExpanded) 5f else -1f)
-                            .alpha(if (isExpanded) 1f else 0f),
-                    ) {
-                        AndroidView(
-                            factory = {
-                                (watchWebView.parent as? ViewGroup)?.removeView(watchWebView)
-                                watchWebView.apply {
-                                    layoutParams = ViewGroup.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                    )
+                            .let { mod ->
+                                if (isExpanded) {
+                                    mod.fillMaxSize().zIndex(5f).alpha(1f)
+                                } else {
+                                    mod.size(1.dp).zIndex(-1f).alpha(0.01f)
                                 }
                             },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .testTag("watch_webview"),
-                        )
+                    ) {
+                        key(watchRecoveryEpoch) {
+                            val activeWatchWebView = watchWebViewProvider()
+                            AndroidView(
+                                factory = {
+                                    (activeWatchWebView.parent as? ViewGroup)?.removeView(activeWatchWebView)
+                                    activeWatchWebView.apply {
+                                        layoutParams = ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .testTag("watch_webview"),
+                            )
+                        }
 
                         if (isExpanded && !uiState.isWatchPlayerReady) {
                             WatchLoadingSkeleton()

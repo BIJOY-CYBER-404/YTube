@@ -13,6 +13,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.example.cache.ResourceCacheManager
+import com.example.debug.BugReportStore
+import com.example.debug.LogSeverity
 import java.io.ByteArrayInputStream
 import java.util.Locale
 
@@ -160,6 +162,12 @@ class AdBlockingWebViewClient(
         super.onReceivedError(view, request, error)
         if (request?.url?.toString() == "about:blank") return
         if (request?.isForMainFrame == true) {
+            BugReportStore.log(
+                severity = LogSeverity.ERROR,
+                tag = if (isWatchRole) "WatchWebView" else "FeedWebView",
+                message = "Main-frame error (${error?.errorCode}): ${error?.description ?: "Unknown"}",
+                contextInfo = request.url?.toString(),
+            )
             onMainFrameError(true)
         }
     }
@@ -168,6 +176,17 @@ class AdBlockingWebViewClient(
         view: WebView?,
         detail: RenderProcessGoneDetail?,
     ): Boolean {
+        val didCrash = detail?.didCrash() == true
+        BugReportStore.log(
+            severity = if (didCrash) LogSeverity.CRASH else LogSeverity.ERROR,
+            tag = if (isWatchRole) "WatchRenderer" else "FeedRenderer",
+            message = if (didCrash) {
+                "WebView render process crashed (didCrash=true)"
+            } else {
+                "WebView render process killed by system (didCrash=false)"
+            },
+            contextInfo = view?.url,
+        )
         onRenderProcessCrashed()
         return true
     }

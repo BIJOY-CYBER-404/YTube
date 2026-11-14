@@ -32,6 +32,8 @@
     <string name="author_avatar_desc">Bijoy Kumar Sarkar profile picture</string>
     <string name="author_specialist_label">Specialist Languages</string>
     <string name="author_description">Android &amp; Cybersecurity developer building fast, ad-free, native-feel mobile apps like YTube.</string>
+    <string name="author_shake_tip_title">Shake to Report Bug</string>
+    <string name="author_shake_tip_body">Shake your phone anytime to open the Debug &amp; Crash screen and send logs directly via WhatsApp.</string>
     <string name="author_whatsapp_cta">WhatsApp</string>
     <string name="author_dismiss">Dismiss</string>
     <string name="minimize_video_desc">Minimize video player</string>
@@ -39,4 +41,22 @@
     <string name="close_player_desc">Close video player</string>
     <string name="google_signin_title">Sign in with Google Account</string>
     <string name="google_signin_desc">Sync your device Google account to YouTube</string>
+    <string name="debug_screen_title">Debug &amp; Bug Report</string>
+    <string name="debug_back_desc">Close debug screen</string>
+    <string name="debug_crash_banner_title">Recent App Crash Captured</string>
+    <string name="debug_crash_banner_subtitle">A crash or renderer failure was recorded. You can report it to the developer on WhatsApp below.</string>
+    <string name="debug_report_section_title">Report Bug to Developer</string>
+    <string name="debug_note_hint">Describe the issue (optional)</string>
+    <string name="debug_note_placeholder">e.g. Video paused or screen glitched while…</string>
+    <string name="debug_whatsapp_report_cta">Report Developer via WhatsApp</string>
+    <string name="debug_whatsapp_unavailable">WhatsApp is not installed. Full diagnostics copied to clipboard!</string>
+    <string name="debug_copy_report">Copy Full Diagnostics</string>
+    <string name="debug_copied_toast">Diagnostics copied to clipboard</string>
+    <string name="debug_clear_logs">Clear captured logs</string>
+    <string name="debug_shake_title">Shake Phone to Report Bug</string>
+    <string name="debug_shake_subtitle">Open this Debug screen anytime by shaking your device</string>
+    <string name="debug_logs_header">Captured Errors &amp; Crashes (%1$d)</string>
+    <string name="debug_tap_expand_hint">Tap a log to inspect details</string>
+    <string name="debug_empty_title">Everything Looks Healthy</string>
+    <string name="debug_empty_subtitle">No crashes or errors captured yet. Shake your phone anytime if something goes wrong.</string>
 </resources>

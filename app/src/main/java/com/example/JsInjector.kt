@@ -127,10 +127,14 @@ object JsInjector {
                     'html, body { overscroll-behavior-y: contain !important; -webkit-font-smoothing: antialiased !important; }\n' +
                     '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }\n' +
                     'ytm-mobile-topbar-renderer .mobile-topbar-logo, ytm-home-logo, #home-icon { cursor: default !important; }\n' +
-                    // Watch-role native YouTube-app player layout: remove web top bar above video & keep 16:9 player docked cleanly
-                    'html.ytube-watch-role ytm-mobile-topbar-renderer { display: none !important; height: 0 !important; min-height: 0 !important; }\n' +
-                    'html.ytube-watch-role ytm-app, html.ytube-watch-role ytm-watch { margin-top: 0 !important; padding-top: 0 !important; }\n' +
-                    'html.ytube-watch-role #player-container-id { position: sticky !important; top: 0 !important; z-index: 200 !important; width: 100% !important; background: #000 !important; margin-top: 0 !important; }\n' +
+                    // Watch-role native YouTube-app player layout: remove web top bar above video & eliminate phantom 56.25% placeholder gap
+                    'html.ytube-watch-role ytm-mobile-topbar-renderer, html.ytube-watch-role ytm-header, html.ytube-watch-role header.ghost-header { display: none !important; height: 0 !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; }\n' +
+                    'html.ytube-watch-role ytm-app, html.ytube-watch-role ytm-watch, html.ytube-watch-role ytm-app.sticky-player { margin-top: 0 !important; padding-top: 0 !important; }\n' +
+                    'html.ytube-watch-role #player-container-id { position: sticky !important; top: 0 !important; z-index: 200 !important; width: 100% !important; background: #000 !important; margin: 0 !important; padding: 0 !important; aspect-ratio: 16 / 9 !important; height: calc(100vw * 9 / 16) !important; max-height: calc(100vw * 9 / 16) !important; min-height: 0 !important; }\n' +
+                    'html.ytube-watch-role #player-container-id .player-size, html.ytube-watch-role #player-container-id #player { width: 100% !important; height: 100% !important; max-height: 100% !important; min-height: 0 !important; padding-bottom: 0 !important; margin: 0 !important; }\n' +
+                    'html.ytube-watch-role #player-container-id video, html.ytube-watch-role #movie_player video, html.ytube-watch-role .html5-video-player video { width: 100% !important; height: 100% !important; object-fit: contain !important; }\n' +
+                    'html.ytube-watch-role .player-placeholder-wrapper, html.ytube-watch-role .player-placeholder, html.ytube-watch-role [class*="player-placeholder"], html.ytube-watch-role ytm-app .player-placeholder-wrapper, html.ytube-watch-role .player-size.sticky-player:not(#player-container-id *), html.ytube-watch-role #player-cinematics-container, html.ytube-watch-role .player-cinematics { display: none !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; padding: 0 !important; margin: 0 !important; }\n' +
+                    'html.ytube-watch-role .watch-below-the-player, html.ytube-watch-role .watch-main-col, html.ytube-watch-role ytm-slim-video-metadata-section-renderer, html.ytube-watch-role ytm-single-column-watch-next-results-renderer { margin-top: 0 !important; padding-top: 0 !important; }\n' +
                     'html.ytube-watch-role .ytp-play-progress, html.ytube-watch-role .ytp-swatch-background-color, html.ytube-watch-role .ytm-progress-bar-played { background-color: #FF0033 !important; }\n' +
                     // Live miniplayer mode inside shrunken watch WebView
                     'html.ytube-minimized, html.ytube-minimized body { overflow: hidden !important; background: #000 !important; margin: 0 !important; padding: 0 !important; }\n' +
@@ -226,6 +230,19 @@ object JsInjector {
                         } catch (e) {}
                     }, true);
 
+                    var getVideoId = function(urlObj) {
+                        try {
+                            if (!urlObj) return '';
+                            if (urlObj.hostname && urlObj.hostname.toLowerCase() === 'youtu.be') {
+                                return (urlObj.pathname || '').replace(/^\/+/, '').split('/')[0] || '';
+                            }
+                            return (urlObj.searchParams && urlObj.searchParams.get('v')) ? urlObj.searchParams.get('v') : '';
+                        } catch (e) {
+                            return '';
+                        }
+                    };
+                    window.__ytubeGetVideoId = getVideoId;
+
                     try {
                         var origPushState = history.pushState;
                         history.pushState = function(state, title, url) {
@@ -239,8 +256,10 @@ object JsInjector {
                                             window.YTubeBridge.openVideo(parsed.toString());
                                             return;
                                         }
-                                        if (window.__ytubeRole === 'watch' && isWatchUrl && typeof window.YTubeBridge.openVideo === 'function') {
-                                            window.YTubeBridge.openVideo(parsed.toString());
+                                        if (window.__ytubeRole === 'watch' && isWatchUrl) {
+                                            if (typeof window.YTubeBridge.syncWatchUrl === 'function') {
+                                                window.YTubeBridge.syncWatchUrl(parsed.toString());
+                                            }
                                         }
                                     }
                                 }
@@ -256,8 +275,8 @@ object JsInjector {
                                     if (parsed) {
                                         var path = parsed.pathname || '';
                                         var isWatchUrl = (path === '/watch' && Boolean(parsed.searchParams.get('v')));
-                                        if (isWatchUrl && typeof window.YTubeBridge.openVideo === 'function') {
-                                            window.YTubeBridge.openVideo(parsed.toString());
+                                        if (isWatchUrl && typeof window.YTubeBridge.syncWatchUrl === 'function') {
+                                            window.YTubeBridge.syncWatchUrl(parsed.toString());
                                         }
                                     }
                                 }
@@ -311,9 +330,96 @@ object JsInjector {
                     } catch (e) {}
                 }
 
-                // 2d. Signal Android once actual feed/watch UI nodes have mounted so skeletons dissolve cleanly
+                // 2d. Collapse phantom placeholder spaces below player & automate video unmuting
+                var collapseWatchSpacing = function() {
+                    if (window.__ytubeRole !== 'watch') return;
+                    try {
+                        var placeholders = document.querySelectorAll(
+                            '.player-placeholder-wrapper, .player-placeholder, [class*="player-placeholder"], ytm-app .player-placeholder-wrapper, #player-cinematics-container, .player-cinematics'
+                        );
+                        for (var i = 0; i < placeholders.length; i++) {
+                            placeholders[i].style.setProperty('display', 'none', 'important');
+                            placeholders[i].style.setProperty('height', '0px', 'important');
+                            placeholders[i].style.setProperty('min-height', '0px', 'important');
+                            placeholders[i].style.setProperty('padding', '0px', 'important');
+                            placeholders[i].style.setProperty('margin', '0px', 'important');
+                        }
+                        var appEl = document.querySelector('ytm-app, ytm-watch');
+                        if (appEl) {
+                            appEl.style.setProperty('padding-top', '0px', 'important');
+                            appEl.style.setProperty('margin-top', '0px', 'important');
+                        }
+                        var belowEls = document.querySelectorAll(
+                            '.watch-below-the-player, ytm-slim-video-metadata-section-renderer, .watch-main-col, ytm-single-column-watch-next-results-renderer'
+                        );
+                        for (var j = 0; j < belowEls.length; j++) {
+                            belowEls[j].style.setProperty('padding-top', '0px', 'important');
+                            belowEls[j].style.setProperty('margin-top', '0px', 'important');
+                        }
+                    } catch (e) {}
+                };
+                collapseWatchSpacing();
+
+                var triggerUnmute = function() {
+                    if (window.__ytubeAdSpeedActive) return;
+                    try {
+                        var videos = document.querySelectorAll('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            var v = videos[i];
+                            if (v.muted) {
+                                v.muted = false;
+                            }
+                            if (v.volume < 1.0) {
+                                v.volume = 1.0;
+                            }
+                        }
+                    } catch (e) {}
+                    try {
+                        var player = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
+                        if (player) {
+                            if (typeof player.isMuted === 'function' && player.isMuted()) {
+                                if (typeof player.unMute === 'function') player.unMute();
+                            } else if (typeof player.unMute === 'function') {
+                                player.unMute();
+                            }
+                            if (typeof player.setVolume === 'function') {
+                                player.setVolume(100);
+                            }
+                        }
+                    } catch (e) {}
+                    try {
+                        var unmuteBtns = document.querySelectorAll(
+                            '.ytp-unmute, .ytp-unmute-inner, button.ytm-unmute-button, button[aria-label*="unmute" i], .ytp-volume-control button, button.ytp-mute-button[data-title-no-tooltip="Unmute"], .ytp-unmute.ytp-panel-header'
+                        );
+                        for (var b = 0; b < unmuteBtns.length; b++) {
+                            var btn = unmuteBtns[b];
+                            if (btn && typeof btn.click === 'function') {
+                                btn.click();
+                            }
+                        }
+                    } catch (e) {}
+                };
+                window.__ytubeUnmute = triggerUnmute;
+
+                var monitorVideoAudio = function(videoNode) {
+                    if (!videoNode || videoNode.__ytubeAudioMonitored) return;
+                    videoNode.__ytubeAudioMonitored = true;
+                    var handleAudio = function() {
+                        if (!window.__ytubeAdSpeedActive) {
+                            triggerUnmute();
+                        }
+                    };
+                    ['play', 'playing', 'loadedmetadata', 'loadeddata', 'canplay', 'volumechange'].forEach(function(evt) {
+                        videoNode.addEventListener(evt, handleAudio, true);
+                    });
+                    handleAudio();
+                };
+
+                // Signal Android once actual feed/watch UI nodes have mounted so skeletons dissolve cleanly
                 var notifyContentReady = function() {
                     if (window.__ytubeRole === 'watch') {
+                        collapseWatchSpacing();
+                        triggerUnmute();
                         if (!window.__ytubeWatchReadySignaled) {
                             var videoNode = document.querySelector('video');
                             var hasWatchDom = Boolean(videoNode && (videoNode.readyState >= 1 || document.querySelector('ytm-slim-video-metadata-section-renderer, ytm-watch')));
@@ -340,6 +446,7 @@ object JsInjector {
                 window.__ytubePlay = function() {
                     var video = document.querySelector('video');
                     if (video) {
+                        triggerUnmute();
                         var p = video.play();
                         if (p && p.catch) p.catch(function(){});
                         return true;
@@ -363,7 +470,7 @@ object JsInjector {
                     }
                 };
 
-                // 4. 500 ms SPA-safe timer for auto-skip, 16x ad fast-forward, automatic next play, image prewarm & MediaSession sync
+                // 4. 500 ms SPA-safe timer for auto-skip, 16x ad fast-forward, automatic next play, image prewarm, spacing collapse & unmute sync
                 if (!window.__ytubeAdTimer) {
                     window.__ytubeAdSpeedActive = false;
                     window.__ytubeSavedMuted = null;
@@ -372,6 +479,7 @@ object JsInjector {
                     window.__ytubeAdTimer = setInterval(function() {
                         try {
                             notifyContentReady();
+                            collapseWatchSpacing();
                             if (window.__ytubeScanImages) {
                                 window.__ytubeScanImages();
                             }
@@ -391,20 +499,6 @@ object JsInjector {
                                 }
                             }
 
-                            // Automatic next play (autonav endscreen next button or video ended click next recommendation)
-                            var autonavBtn = document.querySelector('.ytp-autonav-endscreen-next-button, .ytp-autonav-button-next, .ytp-upnext-autoplay-icon, ytm-autonav-endscreen-renderer button.ytp-autonav-endscreen-upnext');
-                            if (autonavBtn && typeof autonavBtn.click === 'function') {
-                                autonavBtn.click();
-                            }
-
-                            var video = document.querySelector('video');
-                            if (video && video.ended) {
-                                var nextLink = document.querySelector('ytm-compact-video-renderer a[href*="/watch"], ytm-rich-item-renderer a[href*="/watch"], .ytp-suggestion-set a[href*="/watch"]');
-                                if (nextLink && typeof nextLink.click === 'function') {
-                                    nextLink.click();
-                                }
-                            }
-
                             var player = document.querySelector('#movie_player, .html5-video-player');
                             var adOverlay = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-persistent-progress-bar-container');
                             var isAdShowing = Boolean(
@@ -412,7 +506,96 @@ object JsInjector {
                                 adOverlay
                             );
 
+                            var video = document.querySelector('video');
+                            var isVisibleEl = function(el) {
+                                if (!el) return false;
+                                try {
+                                    var st = window.getComputedStyle(el);
+                                    if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+                                    var r = el.getBoundingClientRect();
+                                    return r.width > 4 && r.height > 4;
+                                } catch (e) {
+                                    return false;
+                                }
+                            };
+
+                            if (window.__ytubeRole === 'watch' && video && !isAdShowing) {
+                                // Ensure single watch videos do not self-loop when reaching the end
+                                if (video.loop) {
+                                    video.loop = false;
+                                }
+
+                                var currentUrlParsed = parseYouTubeUrl(window.location.href);
+                                var currentVidId = (window.__ytubeGetVideoId && currentUrlParsed)
+                                    ? window.__ytubeGetVideoId(currentUrlParsed)
+                                    : '';
+
+                                if (currentVidId && currentVidId !== window.__ytubeActiveVideoId && !video.ended) {
+                                    if (window.__ytubeActiveVideoId) {
+                                        window.__ytubePrevVideoId = window.__ytubeActiveVideoId;
+                                    }
+                                    window.__ytubeActiveVideoId = currentVidId;
+                                }
+
+                                var nearEnd = isFinite(video.duration) && video.duration > 5 &&
+                                    video.currentTime >= video.duration - 0.35 && video.paused;
+                                var hasEnded = Boolean(video.ended || nearEnd);
+
+                                var endscreenContainer = document.querySelector('ytm-autonav-endscreen-renderer, .ytp-autonav-endscreen-countdown-overlay');
+                                var endscreenVisible = isVisibleEl(endscreenContainer);
+                                var autonavBtn = endscreenVisible
+                                    ? document.querySelector('.ytp-autonav-endscreen-next-button, ytm-autonav-endscreen-renderer a[href*="/watch"], ytm-autonav-endscreen-renderer button.ytp-autonav-endscreen-upnext')
+                                    : null;
+
+                                var nowMs = Date.now();
+                                var canTriggerNext = Boolean(currentVidId) &&
+                                    window.__ytubeAutoNextFiredForId !== currentVidId &&
+                                    (nowMs - (window.__ytubeLastAutoNextAt || 0) > 6000);
+
+                                if (canTriggerNext && (hasEnded || (autonavBtn && isVisibleEl(autonavBtn)))) {
+                                    if (autonavBtn && typeof autonavBtn.click === 'function' && isVisibleEl(autonavBtn)) {
+                                        window.__ytubeAutoNextFiredForId = currentVidId;
+                                        window.__ytubeLastAutoNextAt = nowMs;
+                                        autonavBtn.click();
+                                    } else if (hasEnded) {
+                                        var candidateLinks = document.querySelectorAll(
+                                            'ytm-autonav-endscreen-renderer a[href*="/watch"], ytm-compact-video-renderer a[href*="/watch"], ytm-video-with-context-renderer a[href*="/watch"], .ytp-suggestion-set a[href*="/watch"]'
+                                        );
+                                        var chosenLink = null;
+                                        for (var c = 0; c < candidateLinks.length; c++) {
+                                            var candParsed = parseYouTubeUrl(candidateLinks[c].getAttribute('href'));
+                                            var candId = (window.__ytubeGetVideoId && candParsed)
+                                                ? window.__ytubeGetVideoId(candParsed)
+                                                : '';
+                                            if (candId && candId !== currentVidId && candId !== window.__ytubePrevVideoId) {
+                                                chosenLink = candidateLinks[c];
+                                                break;
+                                            }
+                                        }
+                                        if (!chosenLink) {
+                                            for (var c2 = 0; c2 < candidateLinks.length; c2++) {
+                                                var candParsed2 = parseYouTubeUrl(candidateLinks[c2].getAttribute('href'));
+                                                var candId2 = (window.__ytubeGetVideoId && candParsed2)
+                                                    ? window.__ytubeGetVideoId(candParsed2)
+                                                    : '';
+                                                if (candId2 && candId2 !== currentVidId) {
+                                                    chosenLink = candidateLinks[c2];
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if (chosenLink && typeof chosenLink.click === 'function') {
+                                            window.__ytubeAutoNextFiredForId = currentVidId;
+                                            window.__ytubeLastAutoNextAt = nowMs;
+                                            chosenLink.click();
+                                        }
+                                    }
+                                }
+                            }
+
                             if (video) {
+                                monitorVideoAudio(video);
+
                                 if (isAdShowing) {
                                     if (!window.__ytubeAdSpeedActive) {
                                         window.__ytubeSavedMuted = video.muted;
@@ -430,9 +613,14 @@ object JsInjector {
                                     if (video.playbackRate === 16) {
                                         video.playbackRate = 1;
                                     }
-                                    if (window.__ytubeSavedMuted !== null) {
-                                        video.muted = window.__ytubeSavedMuted;
-                                        window.__ytubeSavedMuted = null;
+                                    video.muted = false;
+                                    video.volume = 1.0;
+                                    window.__ytubeSavedMuted = null;
+                                    triggerUnmute();
+                                } else {
+                                    // Regular video playing: ensure unmuted with full volume
+                                    if (video.muted || video.volume < 1.0) {
+                                        triggerUnmute();
                                     }
                                 }
 
@@ -472,7 +660,42 @@ object JsInjector {
         return "window.__ytubeBgPlay = $bgLiteral;"
     }
 
-    fun buildPlayScript(): String = "if (window.__ytubePlay) { window.__ytubePlay(); }"
+    fun buildPlayScript(): String = """
+        (function() {
+            if (window.__ytubePlay) {
+                window.__ytubePlay();
+            } else {
+                var v = document.querySelector('video');
+                if (v) {
+                    v.muted = false;
+                    v.volume = 1.0;
+                    var p = v.play();
+                    if (p && p.catch) p.catch(function(){});
+                }
+            }
+        })();
+    """.trimIndent()
+
+    fun buildUnmuteScript(): String = """
+        (function() {
+            if (window.__ytubeUnmute) {
+                window.__ytubeUnmute();
+            } else {
+                try {
+                    var videos = document.querySelectorAll('video');
+                    for (var i = 0; i < videos.length; i++) {
+                        videos[i].muted = false;
+                        videos[i].volume = 1.0;
+                    }
+                    var player = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
+                    if (player && typeof player.unMute === 'function') player.unMute();
+                    if (player && typeof player.setVolume === 'function') player.setVolume(100);
+                    var btns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-inner, button.ytm-unmute-button, button[aria-label*="unmute" i]');
+                    for (var j = 0; j < btns.length; j++) { btns[j].click(); }
+                } catch(e) {}
+            }
+        })();
+    """.trimIndent()
 
     fun buildPauseScript(): String = "if (window.__ytubePause) { window.__ytubePause(); }"
 

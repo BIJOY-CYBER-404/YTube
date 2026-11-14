@@ -16,8 +16,8 @@ android {
     applicationId = "com.ytube.bk"
     minSdk = 24
     targetSdk = 36
-    versionCode = 17
-    versionName = "1.4.10"
+    versionCode = 19
+    versionName = "1.4.12"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

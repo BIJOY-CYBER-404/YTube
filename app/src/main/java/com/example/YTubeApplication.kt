@@ -11,17 +11,19 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import com.example.cache.ResourceCacheManager
+import com.example.debug.BugReportStore
 import java.io.ByteArrayInputStream
 
 /**
- * Application entry point that warms Chromium's WebView settings/cookie store,
- * routes Service Worker network fetches through YTube's AdBlocker + ResourceCacheManager,
- * and triggers asynchronous CDN preconnect + static bundle preloading on cold start.
+ * Application entry point that initializes persistent crash capture, warms Chromium's WebView
+ * settings/cookie store, routes Service Worker network fetches through YTube's AdBlocker +
+ * ResourceCacheManager, and triggers asynchronous CDN preconnect + static bundle preloading.
  */
 class YTubeApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        BugReportStore.installUncaughtExceptionHandler(this)
         val resourceCache = ResourceCacheManager.getInstance(this)
         val adBlocker = AdBlocker.fromAssets(this)
         resourceCache.warmUpAsync()

@@ -233,5 +233,52 @@ class ExampleRobolectricTest {
         assertEquals("wa.me", data?.host)
         assertEquals("/8801605081296", data?.path)
         assertTrue(data?.getQueryParameter("text")?.contains("Bijoy Kumar Sarkar") == true)
+        assertTrue(context.getString(R.string.author_shake_tip_title).contains("Shake", ignoreCase = true))
+    }
+
+    @Test
+    fun `shake detector and bug report store capture logs and format whatsapp report`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        com.example.debug.BugReportStore.init(context)
+        com.example.debug.BugReportStore.clearLogs()
+
+        // Gravity at rest should be ~1.0G, strong shake exceeds threshold
+        val restG = com.example.debug.ShakeDetector.computeGForce(0f, android.hardware.SensorManager.GRAVITY_EARTH, 0f)
+        assertEquals(1.0f, restG, 0.05f)
+        val shakeG = com.example.debug.ShakeDetector.computeGForce(24f, 12f, 6f)
+        assertTrue(shakeG >= com.example.debug.ShakeDetector.SHAKE_THRESHOLD_G)
+
+        com.example.debug.BugReportStore.log(
+            severity = com.example.debug.LogSeverity.ERROR,
+            tag = "WatchRenderer",
+            message = "Test renderer failure",
+            contextInfo = "https://m.youtube.com/watch?v=abc",
+        )
+        assertEquals(1, com.example.debug.BugReportStore.logs.value.size)
+
+        val report = com.example.debug.BugReportStore.buildWhatsAppReportText(
+            appVersion = "1.4.12",
+            versionCode = 19,
+            userNote = "Auto-next check",
+            selectedCategories = setOf("Playback"),
+            currentUrl = "https://m.youtube.com",
+            activeVideoUrl = "https://m.youtube.com/watch?v=abc",
+            isSignedIn = true,
+            backgroundPlayEnabled = true,
+            blockedCount = 12,
+        )
+        assertTrue(report.contains("YTube Bug & Diagnostics Report"))
+        assertTrue(report.contains("WatchRenderer"))
+        assertTrue(report.contains("Auto-next check"))
+        com.example.debug.BugReportStore.clearLogs()
+    }
+
+    @Test
+    fun `js injector guards autonav against looping and syncs watch url without reload`() {
+        val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true, isWatchRole = true)
+        assertTrue(watchScript.contains("syncWatchUrl"))
+        assertTrue(watchScript.contains("video.loop = false"))
+        assertTrue(watchScript.contains("__ytubeAutoNextFiredForId"))
+        assertFalse(watchScript.contains(".ytp-upnext-autoplay-icon"))
     }
 }

@@ -7,6 +7,7 @@ import android.webkit.CookieManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cache.ResourceCacheManager
+import com.example.debug.BugReportStore
 import com.example.update.ApkDownloadResult
 import com.example.update.GitHubUpdateManager
 import com.example.update.MandatoryUpdateState
@@ -44,6 +45,7 @@ data class YTubeUiState(
     val activeVideoUrl: String? = null,
     val isWatchPlayerReady: Boolean = false,
     val isGoogleSignedIn: Boolean = false,
+    val showDebugScreen: Boolean = false,
     val updateState: MandatoryUpdateState = MandatoryUpdateState.None,
 ) {
     companion object {
@@ -62,6 +64,7 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
         YTubeUiState(
             backgroundPlayEnabled = prefs.getBoolean(KEY_BACKGROUND_PLAY, true),
             showAuthorDialog = !prefs.getBoolean(KEY_AUTHOR_DIALOG_SHOWN, false),
+            showDebugScreen = BugReportStore.hasUnreadCrash.value,
         ),
     )
     val uiState: StateFlow<YTubeUiState> = _uiState.asStateFlow()
@@ -99,7 +102,10 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openWatchVideo(url: String): Boolean {
         val current = _uiState.value
-        val sameVideo = current.activeVideoUrl == url && current.playerMode != YTubePlayerMode.HIDDEN
+        val currentId = extractYouTubeVideoId(current.activeVideoUrl)
+        val newId = extractYouTubeVideoId(url)
+        val sameVideo = current.playerMode != YTubePlayerMode.HIDDEN &&
+            ((currentId != null && currentId == newId) || current.activeVideoUrl == url)
         _uiState.update {
             it.copy(
                 playerMode = YTubePlayerMode.EXPANDED,
@@ -118,6 +124,21 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return !sameVideo
+    }
+
+    fun syncWatchVideoUrl(url: String) {
+        val current = _uiState.value
+        if (current.playerMode == YTubePlayerMode.HIDDEN) return
+        val currentId = extractYouTubeVideoId(current.activeVideoUrl)
+        val newId = extractYouTubeVideoId(url)
+        val changedVideo = newId != null && newId != currentId
+        _uiState.update {
+            it.copy(
+                activeVideoUrl = url,
+                mediaTitle = if (changedVideo) "Loading next video…" else it.mediaTitle,
+                mediaChannel = if (changedVideo) "YouTube" else it.mediaChannel,
+            )
+        }
     }
 
     fun markWatchPlayerReady() {
@@ -153,6 +174,23 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissAuthorDialog() {
         prefs.edit().putBoolean(KEY_AUTHOR_DIALOG_SHOWN, true).apply()
         _uiState.update { it.copy(showAuthorDialog = false) }
+    }
+
+    fun openDebugScreen() {
+        _uiState.update { it.copy(showDebugScreen = true) }
+    }
+
+    fun closeDebugScreen() {
+        BugReportStore.markCrashSeen()
+        _uiState.update { it.copy(showDebugScreen = false) }
+    }
+
+    fun setShakeToReportEnabled(enabled: Boolean) {
+        BugReportStore.setShakeToReportEnabled(enabled)
+    }
+
+    fun clearDebugLogs() {
+        BugReportStore.clearLogs()
     }
 
     fun checkForRemoteUpdate(force: Boolean = false) {
@@ -381,7 +419,7 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val PREFS_NAME = "ytube_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
-        private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v3"
+        private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v4"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L
         private const val WATCH_SKELETON_MAX_MS = 1_600L

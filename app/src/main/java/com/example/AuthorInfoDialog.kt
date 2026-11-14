@@ -164,7 +164,45 @@ fun AuthorInfoDialog(
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("author_shake_tip_banner"),
+                    shape = RoundedCornerShape(14.dp),
+                    color = YTubeRed.copy(alpha = 0.1f),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_vibration),
+                            contentDescription = null,
+                            tint = YTubeRed,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.author_shake_tip_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = YTubeRed,
+                            )
+                            Text(
+                                text = stringResource(R.string.author_shake_tip_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

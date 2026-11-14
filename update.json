@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "1.4.10",
+  "versionCode": 19,
+  "versionName": "1.4.12",
   "mandatory": true,
-  "title": "YTube v1.4.10",
-  "releaseNotes": "Enhanced Google sign-in integration with prefilled email and real-time cookie session tracking.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.10.apk"
+  "title": "YTube v1.4.12",
+  "releaseNotes": "Added Shake-to-Report Bug feature, dedicated Debug & Crash Diagnostics screen with 1-tap WhatsApp bug reporting, Shake tip in developer popup, lazy WebView renderer crash recovery, and fixed automatic next video looping.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.12.apk"
 }
