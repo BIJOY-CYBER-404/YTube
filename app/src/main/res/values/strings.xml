@@ -29,10 +29,12 @@
     <string name="update_error_fallback">Unable to download the update inside YTube. Please try again.</string>
     <string name="author_dialog_title">ABOUT THE DEVELOPER</string>
     <string name="author_name">Bijoy Kumar Sarkar</string>
-    <string name="author_handle">\@BIJOY-CYBER-404</string>
     <string name="author_avatar_desc">Bijoy Kumar Sarkar profile picture</string>
     <string name="author_specialist_label">Specialist Languages</string>
     <string name="author_description">Android &amp; Cybersecurity developer building fast, ad-free, native-feel mobile apps like YTube.</string>
-    <string name="author_whatsapp_cta">WhatsApp (+8801605081296)</string>
+    <string name="author_whatsapp_cta">WhatsApp</string>
     <string name="author_dismiss">Dismiss</string>
+    <string name="minimize_video_desc">Minimize video player</string>
+    <string name="expand_player_desc">Expand video player</string>
+    <string name="close_player_desc">Close video player</string>
 </resources>

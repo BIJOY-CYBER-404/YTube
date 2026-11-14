@@ -18,9 +18,9 @@ import java.util.Locale
 
 /**
  * WebViewClient enforcing network-level ad blocking via [AdBlocker], serving cached
- * static assets via [ResourceCacheManager], keeping YouTube and Google Sign-In flows
- * inside the WebView with persistent cookie flushing, and routing external links out
- * to the system browser.
+ * static assets via [ResourceCacheManager], routing /watch videos to the dedicated
+ * app-style Watch player without disturbing or reloading the feed, keeping Google Sign-In
+ * inside the WebView with persistent cookies, and routing external links out.
  */
 class AdBlockingWebViewClient(
     private val context: Context,
@@ -28,6 +28,11 @@ class AdBlockingWebViewClient(
     private val resourceCache: ResourceCacheManager? = null,
     private val isBackgroundPlayEnabled: () -> Boolean,
     private val isDarkTheme: () -> Boolean = { false },
+    private val interceptWatchLinks: Boolean = false,
+    private val isWatchRole: Boolean = false,
+    private val isMinimizedWatch: () -> Boolean = { false },
+    private val onOpenWatchVideo: ((String) -> Unit)? = null,
+    private val onOpenInFeed: ((String) -> Unit)? = null,
     private val onPageStateChanged: (url: String?, title: String?, canGoBack: Boolean) -> Unit,
     private val onMainFrameError: (hasError: Boolean) -> Unit,
     private val onFirstVisualCommit: () -> Unit = {},
@@ -62,6 +67,10 @@ class AdBlockingWebViewClient(
         val uri = request?.url ?: return false
         val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return true
 
+        if (scheme == "about") {
+            return false
+        }
+
         if (scheme == "file" || scheme == "content" || scheme == "javascript" || scheme == "data") {
             return true
         }
@@ -72,6 +81,28 @@ class AdBlockingWebViewClient(
 
         val host = uri.host?.lowercase(Locale.ROOT) ?: return false
         if (scheme == "https" && isInternalYouTubeOrAuthHost(host)) {
+            val path = uri.path.orEmpty()
+            val isWatchUrl = isYouTubeWatchUri(uri)
+
+            if (interceptWatchLinks && isWatchUrl && onOpenWatchVideo != null) {
+                onOpenWatchVideo.invoke(uri.toString())
+                return true
+            }
+
+            if (isWatchRole && !isWatchUrl && !isAuthHost(host) && onOpenInFeed != null) {
+                val isBrowsePath = path == "/" ||
+                    path.startsWith("/@") ||
+                    path.startsWith("/channel/") ||
+                    path.startsWith("/c/") ||
+                    path.startsWith("/user/") ||
+                    path.startsWith("/results") ||
+                    path.startsWith("/feed/") ||
+                    path.startsWith("/shorts")
+                if (isBrowsePath) {
+                    onOpenInFeed.invoke(uri.toString())
+                    return true
+                }
+            }
             return false
         }
 
@@ -80,18 +111,21 @@ class AdBlockingWebViewClient(
 
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
+        if (url == "about:blank") return
         onMainFrameError(false)
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
 
     override fun onPageCommitVisible(view: WebView?, url: String?) {
         super.onPageCommitVisible(view, url)
+        if (url == "about:blank") return
         injectProtectionScripts(view)
         onFirstVisualCommit()
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
+        if (url == "about:blank") return
         injectProtectionScripts(view)
         flushSessionCookies(url)
         onFirstVisualCommit()
@@ -100,6 +134,19 @@ class AdBlockingWebViewClient(
 
     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
         super.doUpdateVisitedHistory(view, url, isReload)
+        if (url == "about:blank") return
+
+        if (interceptWatchLinks && url != null && onOpenWatchVideo != null) {
+            val parsed = runCatching { Uri.parse(url) }.getOrNull()
+            if (parsed != null && isYouTubeWatchUri(parsed)) {
+                onOpenWatchVideo.invoke(url)
+                if (view?.canGoBack() == true) {
+                    view.goBack()
+                }
+                return
+            }
+        }
+
         // YouTube is an SPA; reinforce protection scripts on client-side route transitions.
         injectProtectionScripts(view)
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
@@ -111,6 +158,7 @@ class AdBlockingWebViewClient(
         error: WebResourceError?,
     ) {
         super.onReceivedError(view, request, error)
+        if (request?.url?.toString() == "about:blank") return
         if (request?.isForMainFrame == true) {
             onMainFrameError(true)
         }
@@ -129,8 +177,12 @@ class AdBlockingWebViewClient(
         val script = JsInjector.buildProtectionScript(
             backgroundPlayEnabled = isBackgroundPlayEnabled(),
             isDarkTheme = isDarkTheme(),
+            isWatchRole = isWatchRole,
         )
         view.evaluateJavascript(script, null)
+        if (isWatchRole) {
+            view.evaluateJavascript(JsInjector.buildMinimizedScript(isMinimizedWatch()), null)
+        }
     }
 
     private fun flushSessionCookies(url: String?) {
@@ -175,11 +227,27 @@ class AdBlockingWebViewClient(
             "consent.youtube.com",
         )
 
+        fun isYouTubeWatchUri(uri: Uri): Boolean {
+            val host = uri.host?.lowercase(Locale.ROOT)?.trimEnd('.') ?: return false
+            if (host == "youtu.be") {
+                return uri.path?.trim('/')?.isNotEmpty() == true
+            }
+            val isYt = host == "youtube.com" || host.endsWith(".youtube.com")
+            if (!isYt) return false
+            val path = uri.path.orEmpty()
+            return path.equals("/watch", ignoreCase = true) && !uri.getQueryParameter("v").isNullOrBlank()
+        }
+
+        fun isAuthHost(host: String): Boolean {
+            val normalized = host.lowercase(Locale.ROOT).trimEnd('.')
+            return INTERNAL_AUTH_HOSTS.contains(normalized) || normalized.startsWith("accounts.google.")
+        }
+
         fun isInternalYouTubeHost(host: String): Boolean = isInternalYouTubeOrAuthHost(host)
 
         fun isInternalYouTubeOrAuthHost(host: String): Boolean {
             val normalized = host.lowercase(Locale.ROOT).trimEnd('.')
-            if (INTERNAL_AUTH_HOSTS.contains(normalized) || normalized.startsWith("accounts.google.")) {
+            if (isAuthHost(normalized)) {
                 return true
             }
             return INTERNAL_HOST_SUFFIXES.any { suffix ->

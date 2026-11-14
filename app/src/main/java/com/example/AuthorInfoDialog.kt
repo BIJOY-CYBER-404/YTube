@@ -124,12 +124,6 @@ fun AuthorInfoDialog(
                     textAlign = TextAlign.Center,
                 )
 
-                Text(
-                    text = stringResource(R.string.author_handle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
@@ -172,50 +166,51 @@ fun AuthorInfoDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Button(
-                    onClick = onContactWhatsApp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("author_whatsapp_button"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = whatsAppGreen,
-                        contentColor = Color.White,
-                    ),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("author_dismiss_button"),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.author_dismiss),
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                        )
+                    }
+
+                    Button(
+                        onClick = onContactWhatsApp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("author_whatsapp_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = whatsAppGreen,
+                            contentColor = Color.White,
+                        ),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_chat_bubble),
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = stringResource(R.string.author_whatsapp_cta),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("author_dismiss_button"),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.author_dismiss),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
                 }
             }
         }

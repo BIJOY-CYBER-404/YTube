@@ -41,7 +41,8 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: YTubeViewModel by viewModels()
 
-    private lateinit var webView: BackgroundAudioWebView
+    private lateinit var feedWebView: BackgroundAudioWebView
+    private lateinit var watchWebView: BackgroundAudioWebView
     private lateinit var fullscreenContainer: FrameLayout
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -61,18 +62,22 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        webView = createConfiguredWebView(initialDark)
-        MediaPlaybackService.PlayerBridge.attach(webView)
+        feedWebView = createConfiguredWebView(initialDark = initialDark, isWatchRole = false)
+        watchWebView = createConfiguredWebView(initialDark = initialDark, isWatchRole = true)
+        MediaPlaybackService.PlayerBridge.attach(feedWebView)
         syncYouTubeThemeCookie(initialDark)
-        webView.loadUrl(YTubeUiState.YOUTUBE_HOME_URL)
+        feedWebView.loadUrl(YTubeUiState.YOUTUBE_HOME_URL)
 
         setContent {
             val isDarkTheme = isSystemInDarkTheme()
             SideEffect {
                 applySystemBarsAppearance(isDarkTheme)
-                applyWebViewTheme(webView, isDarkTheme)
+                applyWebViewTheme(feedWebView, isDarkTheme)
+                applyWebViewTheme(watchWebView, isDarkTheme)
                 syncYouTubeThemeCookie(isDarkTheme)
-                webView.evaluateJavascript(JsInjector.buildThemeSyncScript(isDarkTheme), null)
+                val themeScript = JsInjector.buildThemeSyncScript(isDarkTheme)
+                feedWebView.evaluateJavascript(themeScript, null)
+                watchWebView.evaluateJavascript(themeScript, null)
             }
 
             YTubeTheme(darkTheme = isDarkTheme) {
@@ -85,14 +90,23 @@ class MainActivity : ComponentActivity() {
                 val updateActive = uiState.updateState != MandatoryUpdateState.None
                 LaunchedEffect(updateActive) {
                     if (updateActive) {
-                        webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
+                        val pauseScript = JsInjector.buildPauseScript()
+                        feedWebView.evaluateJavascript(pauseScript, null)
+                        watchWebView.evaluateJavascript(pauseScript, null)
                     }
                 }
 
-                BackHandler(enabled = !updateActive && (uiState.isFullscreen || uiState.canGoBack)) {
+                val canHandleBack = !updateActive && (
+                    uiState.isFullscreen ||
+                        uiState.playerMode == YTubePlayerMode.EXPANDED ||
+                        uiState.canGoBack
+                    )
+
+                BackHandler(enabled = canHandleBack) {
                     when {
                         uiState.isFullscreen -> exitFullscreen()
-                        webView.canGoBack() -> webView.goBack()
+                        uiState.playerMode == YTubePlayerMode.EXPANDED -> minimizeWatchPlayer()
+                        feedWebView.canGoBack() -> feedWebView.goBack()
                     }
                 }
 
@@ -100,17 +114,23 @@ class MainActivity : ComponentActivity() {
                     if (!updateActive) {
                         YTubeScreen(
                             uiState = uiState,
-                            webView = webView,
+                            feedWebView = feedWebView,
+                            watchWebView = watchWebView,
                             fullscreenContainer = fullscreenContainer,
                             onReloadClick = {
                                 viewModel.setMainFrameError(false)
-                                webView.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
+                                val cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
                                     WebSettings.LOAD_DEFAULT
                                 } else {
                                     WebSettings.LOAD_CACHE_ELSE_NETWORK
                                 }
-                                webView.reload()
+                                feedWebView.settings.cacheMode = cacheMode
+                                feedWebView.reload()
                             },
+                            onMinimizeWatch = { minimizeWatchPlayer() },
+                            onExpandWatch = { expandWatchPlayer() },
+                            onToggleWatchPlayPause = { toggleWatchPlayPause() },
+                            onCloseWatch = { closeWatchPlayer() },
                         )
 
                         if (uiState.isInitialContentReady && uiState.showAuthorDialog) {
@@ -160,10 +180,70 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun openWatchVideo(url: String) {
+        MediaPlaybackService.PlayerBridge.attach(watchWebView)
+        val shouldLoadNewUrl = viewModel.openWatchVideo(url)
+        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
+        if (shouldLoadNewUrl) {
+            watchWebView.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
+                WebSettings.LOAD_DEFAULT
+            } else {
+                WebSettings.LOAD_CACHE_ELSE_NETWORK
+            }
+            watchWebView.loadUrl(url)
+        } else {
+            watchWebView.evaluateJavascript(JsInjector.buildPlayScript(), null)
+        }
+    }
+
+    private fun minimizeWatchPlayer() {
+        viewModel.minimizeWatchVideo()
+        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(true), null)
+    }
+
+    private fun expandWatchPlayer() {
+        viewModel.expandWatchVideo()
+        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
+    }
+
+    private fun toggleWatchPlayPause() {
+        val isPlaying = viewModel.uiState.value.isPlayingMedia
+        val script = if (isPlaying) JsInjector.buildPauseScript() else JsInjector.buildPlayScript()
+        watchWebView.evaluateJavascript(script, null)
+        viewModel.updateMediaState(
+            isPlaying = !isPlaying,
+            title = viewModel.uiState.value.mediaTitle,
+            channel = viewModel.uiState.value.mediaChannel,
+        )
+        if (viewModel.uiState.value.backgroundPlayEnabled) {
+            MediaPlaybackService.syncPlaybackState(
+                context = this,
+                isPlaying = !isPlaying,
+                title = viewModel.uiState.value.mediaTitle,
+                channel = viewModel.uiState.value.mediaChannel,
+            )
+        }
+    }
+
+    private fun closeWatchPlayer() {
+        watchWebView.evaluateJavascript(JsInjector.buildStopScript(), null)
+        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
+        watchWebView.loadUrl("about:blank")
+        MediaPlaybackService.stop(this)
+        MediaPlaybackService.PlayerBridge.attach(feedWebView)
+        viewModel.closeWatchVideo()
+    }
+
+    private fun openBrowseUrlInFeed(url: String) {
+        minimizeWatchPlayer()
+        feedWebView.loadUrl(url)
+    }
+
     override fun onResume() {
         super.onResume()
         if (wasPausedForBgOff) {
-            webView.onResume()
+            feedWebView.onResume()
+            watchWebView.onResume()
             wasPausedForBgOff = false
         }
 
@@ -184,7 +264,8 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         CookieManager.getInstance().flush()
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
-        webView.keepAliveInBackground = bgEnabled
+        feedWebView.keepAliveInBackground = bgEnabled
+        watchWebView.keepAliveInBackground = bgEnabled
 
         // CRITICAL LIFECYCLE RULE:
         // NEVER call webView.onPause() while background play is enabled — not here and not in onStop().
@@ -198,8 +279,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         } else {
-            webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
-            webView.onPause()
+            val pauseScript = JsInjector.buildPauseScript()
+            feedWebView.evaluateJavascript(pauseScript, null)
+            watchWebView.evaluateJavascript(pauseScript, null)
+            feedWebView.onPause()
+            watchWebView.onPause()
             wasPausedForBgOff = true
         }
     }
@@ -209,8 +293,11 @@ class MainActivity : ComponentActivity() {
         CookieManager.getInstance().flush()
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
         if (!bgEnabled && !wasPausedForBgOff) {
-            webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
-            webView.onPause()
+            val pauseScript = JsInjector.buildPauseScript()
+            feedWebView.evaluateJavascript(pauseScript, null)
+            watchWebView.evaluateJavascript(pauseScript, null)
+            feedWebView.onPause()
+            watchWebView.onPause()
             wasPausedForBgOff = true
         }
     }
@@ -219,9 +306,12 @@ class MainActivity : ComponentActivity() {
         if (isFinishing) {
             MediaPlaybackService.stop(this)
         }
-        MediaPlaybackService.PlayerBridge.detach(webView)
-        (webView.parent as? ViewGroup)?.removeView(webView)
-        webView.destroy()
+        MediaPlaybackService.PlayerBridge.detach(watchWebView)
+        MediaPlaybackService.PlayerBridge.detach(feedWebView)
+        (watchWebView.parent as? ViewGroup)?.removeView(watchWebView)
+        (feedWebView.parent as? ViewGroup)?.removeView(feedWebView)
+        watchWebView.destroy()
+        feedWebView.destroy()
         super.onDestroy()
     }
 
@@ -230,9 +320,12 @@ class MainActivity : ComponentActivity() {
         val isDark = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
         applySystemBarsAppearance(isDark)
-        applyWebViewTheme(webView, isDark)
+        applyWebViewTheme(feedWebView, isDark)
+        applyWebViewTheme(watchWebView, isDark)
         syncYouTubeThemeCookie(isDark)
-        webView.evaluateJavascript(JsInjector.buildThemeSyncScript(isDark), null)
+        val themeScript = JsInjector.buildThemeSyncScript(isDark)
+        feedWebView.evaluateJavascript(themeScript, null)
+        watchWebView.evaluateJavascript(themeScript, null)
     }
 
     private fun isDeviceDarkTheme(): Boolean {
@@ -285,7 +378,10 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
-    private fun createConfiguredWebView(initialDark: Boolean): BackgroundAudioWebView {
+    private fun createConfiguredWebView(
+        initialDark: Boolean,
+        isWatchRole: Boolean,
+    ): BackgroundAudioWebView {
         val initialBg = viewModel.uiState.value.backgroundPlayEnabled
         val view = BackgroundAudioWebView(this).apply {
             keepAliveInBackground = initialBg
@@ -330,7 +426,7 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
             }
-            addJavascriptInterface(YTubeJsBridge(), "YTubeBridge")
+            addJavascriptInterface(YTubeJsBridge(isWatchBridge = isWatchRole), "YTubeBridge")
         }
 
         applyWebViewTheme(view, initialDark)
@@ -346,26 +442,49 @@ class MainActivity : ComponentActivity() {
             resourceCache = viewModel.resourceCache,
             isBackgroundPlayEnabled = { viewModel.uiState.value.backgroundPlayEnabled },
             isDarkTheme = { isDeviceDarkTheme() },
+            interceptWatchLinks = !isWatchRole,
+            isWatchRole = isWatchRole,
+            isMinimizedWatch = { viewModel.uiState.value.playerMode == YTubePlayerMode.MINIMIZED },
+            onOpenWatchVideo = if (!isWatchRole) {
+                { videoUrl -> runOnUiThread { openWatchVideo(videoUrl) } }
+            } else {
+                null
+            },
+            onOpenInFeed = if (isWatchRole) {
+                { browseUrl -> runOnUiThread { openBrowseUrlInFeed(browseUrl) } }
+            } else {
+                null
+            },
             onPageStateChanged = { url, title, canGoBack ->
-                viewModel.updatePageState(url, title, canGoBack)
+                if (!isWatchRole) {
+                    viewModel.updatePageState(url, title, canGoBack)
+                }
             },
             onMainFrameError = { hasError ->
-                viewModel.setMainFrameError(hasError)
+                if (!isWatchRole) {
+                    viewModel.setMainFrameError(hasError)
+                }
             },
             onFirstVisualCommit = {
-                if (viewModel.uiState.value.loadingProgress >= 90) {
+                if (!isWatchRole && viewModel.uiState.value.loadingProgress >= 90) {
                     viewModel.markInitialContentReady()
                 }
             },
             onRenderProcessCrashed = {
-                viewModel.setMainFrameError(true)
+                if (!isWatchRole) {
+                    viewModel.setMainFrameError(true)
+                } else {
+                    viewModel.closeWatchVideo()
+                }
             },
         )
 
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(webView: WebView?, newProgress: Int) {
                 super.onProgressChanged(webView, newProgress)
-                viewModel.updateLoadingProgress(newProgress)
+                if (!isWatchRole) {
+                    viewModel.updateLoadingProgress(newProgress)
+                }
             }
 
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -417,11 +536,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private inner class YTubeJsBridge {
+    private inner class YTubeJsBridge(private val isWatchBridge: Boolean) {
         @JavascriptInterface
         fun onFirstContentReady() {
+            if (!isWatchBridge) {
+                runOnUiThread {
+                    viewModel.markInitialContentReady()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onWatchContentReady() {
+            if (isWatchBridge) {
+                runOnUiThread {
+                    viewModel.markWatchPlayerReady()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun openVideo(url: String?) {
+            if (url.isNullOrBlank()) return
             runOnUiThread {
-                viewModel.markInitialContentReady()
+                openWatchVideo(url)
+            }
+        }
+
+        @JavascriptInterface
+        fun openInFeed(url: String?) {
+            if (url.isNullOrBlank()) return
+            runOnUiThread {
+                openBrowseUrlInFeed(url)
             }
         }
 
@@ -430,6 +576,9 @@ class MainActivity : ComponentActivity() {
             val cleanTitle = title?.takeIf { it.isNotBlank() } ?: "YTube Audio"
             val cleanChannel = channel?.takeIf { it.isNotBlank() } ?: "YouTube"
             runOnUiThread {
+                if (!isWatchBridge && viewModel.uiState.value.playerMode != YTubePlayerMode.HIDDEN) {
+                    return@runOnUiThread
+                }
                 viewModel.updateMediaState(isPlaying, cleanTitle, cleanChannel)
                 if (viewModel.uiState.value.backgroundPlayEnabled && isPlaying) {
                     MediaPlaybackService.syncPlaybackState(

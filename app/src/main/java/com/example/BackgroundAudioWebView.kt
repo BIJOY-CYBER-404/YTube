@@ -6,9 +6,10 @@ import android.view.View
 import android.webkit.WebView
 
 /**
- * Custom WebView subclass that swallows visibility loss signals while [keepAliveInBackground]
- * is enabled, preventing Chromium from throttling timers or suspending media decoding when
- * the Activity moves to the background or the screen turns off.
+ * Custom WebView subclass that swallows visibility loss and window focus loss signals
+ * while [keepAliveInBackground] is enabled, preventing Chromium from throttling timers,
+ * stopping audio decoding, or suspending requestAnimationFrame when switching to another
+ * app or turning off the screen.
  */
 class BackgroundAudioWebView @JvmOverloads constructor(
     context: Context,
@@ -40,6 +41,14 @@ class BackgroundAudioWebView @JvmOverloads constructor(
             super.dispatchWindowVisibilityChanged(View.VISIBLE)
         } else {
             super.dispatchWindowVisibilityChanged(visibility)
+        }
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        if (keepAliveInBackground && !hasWindowFocus) {
+            super.onWindowFocusChanged(true)
+        } else {
+            super.onWindowFocusChanged(hasWindowFocus)
         }
     }
 }

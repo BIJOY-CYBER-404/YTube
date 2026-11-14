@@ -194,21 +194,36 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `js injector includes native touch styling and first content ready signal`() {
-        val script = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true)
-        assertTrue(script.contains("-webkit-tap-highlight-color: transparent"))
-        assertTrue(script.contains("onFirstContentReady"))
-        assertTrue(script.contains("rel = 'prefetch'"))
-        assertTrue(script.contains("colorScheme = 'dark'"))
-        assertTrue(script.contains("__ytubeLogoClickDisabled"))
-        assertTrue(script.contains("accounts.google."))
+    fun `js injector includes watch player, miniplayer, router, and logo guard hooks`() {
+        val feedScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true, isWatchRole = false)
+        assertTrue(feedScript.contains("-webkit-tap-highlight-color: transparent"))
+        assertTrue(feedScript.contains("onFirstContentReady"))
+        assertTrue(feedScript.contains("colorScheme = 'dark'"))
+        assertTrue(feedScript.contains("__ytubeLogoClickDisabled"))
+        assertTrue(feedScript.contains("__ytubeRouterPatched"))
+        assertTrue(feedScript.contains("accounts.google."))
+        assertTrue(feedScript.contains("window.__ytubeRole = 'feed'"))
+
+        val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true, isWatchRole = true)
+        assertTrue(watchScript.contains("window.__ytubeRole = 'watch'"))
+        assertTrue(watchScript.contains("ytube-watch-role"))
+        assertTrue(watchScript.contains("ytube-minimized"))
+        assertTrue(watchScript.contains("window.__ytubeSetMinimized"))
+
         assertTrue(JsInjector.buildThemeSyncScript(isDarkTheme = false).contains("colorScheme='light'"))
+        assertTrue(JsInjector.buildMinimizedScript(true).contains("window.__ytubeSetMinimized(true)"))
+
+        assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/watch?v=dQw4w9WgXcQ")))
+        assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://youtu.be/dQw4w9WgXcQ")))
+        assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/results?search_query=music")))
+        assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/shorts/abc123")))
     }
 
     @Test
     fun `author contact helper creates valid whatsapp intent for developer number`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         assertEquals("Bijoy Kumar Sarkar", context.getString(R.string.author_name))
+        assertEquals("WhatsApp", context.getString(R.string.author_whatsapp_cta))
 
         val intent = AuthorContactHelper.createWhatsAppIntent()
         assertEquals(android.content.Intent.ACTION_VIEW, intent.action)

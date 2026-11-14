@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "1.4.3",
+  "versionCode": 12,
+  "versionName": "1.4.5",
   "mandatory": true,
-  "title": "YTube v1.4.3",
-  "releaseNotes": "Updated one-time developer card with Bijoy Kumar Sarkar profile photo, specialist languages, and WhatsApp direct contact.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.3.apk"
+  "title": "YTube v1.4.5",
+  "releaseNotes": "Enhanced background play focus retention across apps and robust automatic next video playback (autonav).",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.5.apk"
 }

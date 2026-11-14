@@ -19,6 +19,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 
+enum class YTubePlayerMode {
+    HIDDEN,
+    EXPANDED,
+    MINIMIZED,
+}
+
 data class YTubeUiState(
     val backgroundPlayEnabled: Boolean = true,
     val loadingProgress: Int = 0,
@@ -33,6 +39,9 @@ data class YTubeUiState(
     val mediaChannel: String = "YouTube",
     val blockedCount: Int = 0,
     val showAuthorDialog: Boolean = false,
+    val playerMode: YTubePlayerMode = YTubePlayerMode.HIDDEN,
+    val activeVideoUrl: String? = null,
+    val isWatchPlayerReady: Boolean = false,
     val updateState: MandatoryUpdateState = MandatoryUpdateState.None,
 ) {
     companion object {
@@ -75,6 +84,59 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     fun markInitialContentReady() {
         if (_uiState.value.isInitialContentReady) return
         _uiState.update { it.copy(isInitialContentReady = true) }
+    }
+
+    fun openWatchVideo(url: String): Boolean {
+        val current = _uiState.value
+        val sameVideo = current.activeVideoUrl == url && current.playerMode != YTubePlayerMode.HIDDEN
+        _uiState.update {
+            it.copy(
+                playerMode = YTubePlayerMode.EXPANDED,
+                activeVideoUrl = url,
+                isWatchPlayerReady = if (sameVideo) it.isWatchPlayerReady else false,
+                mediaTitle = if (sameVideo) it.mediaTitle else "Loading video…",
+                mediaChannel = if (sameVideo) it.mediaChannel else "YouTube",
+            )
+        }
+        if (!sameVideo) {
+            viewModelScope.launch {
+                delay(WATCH_SKELETON_MAX_MS)
+                if (_uiState.value.activeVideoUrl == url) {
+                    markWatchPlayerReady()
+                }
+            }
+        }
+        return !sameVideo
+    }
+
+    fun markWatchPlayerReady() {
+        if (_uiState.value.isWatchPlayerReady) return
+        _uiState.update { it.copy(isWatchPlayerReady = true) }
+    }
+
+    fun minimizeWatchVideo() {
+        if (_uiState.value.playerMode == YTubePlayerMode.EXPANDED) {
+            _uiState.update { it.copy(playerMode = YTubePlayerMode.MINIMIZED) }
+        }
+    }
+
+    fun expandWatchVideo() {
+        if (_uiState.value.playerMode == YTubePlayerMode.MINIMIZED) {
+            _uiState.update { it.copy(playerMode = YTubePlayerMode.EXPANDED) }
+        }
+    }
+
+    fun closeWatchVideo() {
+        _uiState.update {
+            it.copy(
+                playerMode = YTubePlayerMode.HIDDEN,
+                activeVideoUrl = null,
+                isWatchPlayerReady = false,
+                isPlayingMedia = false,
+                mediaTitle = "YTube Audio",
+                mediaChannel = "YouTube",
+            )
+        }
     }
 
     fun dismissAuthorDialog() {
@@ -308,8 +370,9 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val PREFS_NAME = "ytube_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
-        private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v2"
+        private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v3"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L
+        private const val WATCH_SKELETON_MAX_MS = 1_600L
     }
 }
