@@ -13,7 +13,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -27,18 +26,15 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -76,7 +72,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import coil.compose.AsyncImage
 import com.example.ui.theme.YTubeRed
+import java.util.Locale
 
 @Composable
 fun NotificationPermissionPrompt(backgroundPlayEnabled: Boolean) {
@@ -94,6 +92,27 @@ fun NotificationPermissionPrompt(backgroundPlayEnabled: Boolean) {
         if (!granted) {
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+}
+
+fun extractYouTubeVideoId(url: String?): String? {
+    if (url.isNullOrBlank()) return null
+    return try {
+        val uri = android.net.Uri.parse(url)
+        val host = uri.host?.lowercase(Locale.ROOT) ?: return null
+        if (host.contains("youtu.be")) {
+            uri.path?.trim('/')?.takeIf { it.isNotBlank() }
+        } else if (host.contains("youtube.com")) {
+            if (uri.path?.contains("/shorts/") == true) {
+                uri.path?.substringAfter("/shorts/")?.substringBefore('/')
+            } else {
+                uri.getQueryParameter("v")
+            }
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -123,7 +142,7 @@ fun YTubeScreen(
             containerColor = containerBg,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { innerPadding ->
-            BoxWithConstraints(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -137,9 +156,6 @@ fun YTubeScreen(
                         }
                     },
             ) {
-                val viewportWidth = maxWidth
-                val viewportHeight = maxHeight
-
                 // 1. Feed WebView (Home / Shorts / Subscriptions / Search / Sign-In)
                 AndroidView(
                     factory = { ctx ->
@@ -213,7 +229,7 @@ fun YTubeScreen(
                     OfflineErrorOverlay(onRetry = onReloadClick)
                 }
 
-                // 2. Native App-Style Watch Player + Floating Bottom Miniplayer
+                // 2. Native App-Style Watch Player + Floating Compose Miniplayer Card
                 if (uiState.playerMode != YTubePlayerMode.HIDDEN) {
                     val isExpanded = uiState.playerMode == YTubePlayerMode.EXPANDED
                     val isMinimized = uiState.playerMode == YTubePlayerMode.MINIMIZED
@@ -222,145 +238,22 @@ fun YTubeScreen(
                         !uiState.currentUrl.contains("accounts.google.", ignoreCase = true) &&
                         !uiState.currentUrl.contains("accounts.youtube.", ignoreCase = true)
 
-                    val miniHeight = 62.dp
-                    val miniVideoWidth = 110.dp
-                    val miniBottomPadding = if (feedHasBottomNav) 49.dp else 0.dp
-                    val miniOffsetY = (viewportHeight - miniHeight - miniBottomPadding).coerceAtLeast(0.dp)
+                    val miniHeight = 64.dp
+                    val miniBottomPadding = if (feedHasBottomNav) 48.dp else 0.dp
 
-                    val animSpec = tween<androidx.compose.ui.unit.Dp>(
-                        durationMillis = 220,
-                        easing = FastOutSlowInEasing,
-                    )
-                    val playerWidth by animateDpAsState(
-                        targetValue = if (isExpanded) viewportWidth else miniVideoWidth,
-                        animationSpec = animSpec,
-                        label = "player_width",
-                    )
-                    val playerHeight by animateDpAsState(
-                        targetValue = if (isExpanded) viewportHeight else miniHeight,
-                        animationSpec = animSpec,
-                        label = "player_height",
-                    )
-                    val playerOffsetY by animateDpAsState(
-                        targetValue = if (isExpanded) 0.dp else miniOffsetY,
-                        animationSpec = animSpec,
-                        label = "player_offset_y",
-                    )
-                    val backdropAlpha by animateFloatAsState(
+                    // Expanded Watch full-screen backdrop / container
+                    val alphaAnim by animateFloatAsState(
                         targetValue = if (isExpanded) 1f else 0f,
-                        animationSpec = tween(200),
-                        label = "backdrop_alpha",
+                        animationSpec = tween(180),
+                        label = "watch_alpha",
                     )
 
-                    // Expanded Watch full-screen backdrop
-                    if (backdropAlpha > 0.01f) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(backdropAlpha)
-                                .background(containerBg),
-                        )
-                    }
-
-                    // Miniplayer Chrome Bar (visible when minimized, docked right above bottom tabs)
-                    if (isMinimized) {
-                        val barColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFFDFDFD)
-                        val barBorder = if (isDark) Color(0xFF2F2F2F) else Color(0xFFE6E6E6)
-                        Surface(
-                            modifier = Modifier
-                                .offset(x = 0.dp, y = miniOffsetY)
-                                .fillMaxWidth()
-                                .height(miniHeight)
-                                .testTag("miniplayer_bar"),
-                            color = barColor,
-                            shadowElevation = 8.dp,
-                            tonalElevation = 2.dp,
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                HorizontalDivider(color = barBorder, thickness = 0.75.dp)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clickable(onClick = onExpandWatch),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    // Reserved left slot where the live watchWebView renders
-                                    Spacer(modifier = Modifier.width(miniVideoWidth))
-
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(horizontal = 10.dp),
-                                        verticalArrangement = Arrangement.Center,
-                                    ) {
-                                        Text(
-                                            text = uiState.mediaTitle,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            text = uiState.mediaChannel,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = onToggleWatchPlayPause,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("miniplayer_play_pause_button"),
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(
-                                                if (uiState.isPlayingMedia) {
-                                                    R.drawable.ic_pause
-                                                } else {
-                                                    R.drawable.ic_play_arrow
-                                                },
-                                            ),
-                                            contentDescription = stringResource(
-                                                if (uiState.isPlayingMedia) {
-                                                    R.string.action_pause
-                                                } else {
-                                                    R.string.action_play
-                                                },
-                                            ),
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = onCloseWatch,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("miniplayer_close_button"),
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_close),
-                                            contentDescription = stringResource(R.string.close_player_desc),
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Single animated Watch WebView container (Expanded full watch OR 110x62 live video in Miniplayer)
+                    // Watch WebView container (Visible when Expanded; when Minimized, hidden visually but kept active in background for audio/video stream continuity)
                     Box(
                         modifier = Modifier
-                            .offset(x = 0.dp, y = playerOffsetY)
-                            .width(playerWidth)
-                            .height(playerHeight)
-                            .zIndex(if (isExpanded) 5f else 6f),
+                            .fillMaxSize()
+                            .zIndex(if (isExpanded) 5f else -1f)
+                            .alpha(if (isExpanded) 1f else 0f),
                     ) {
                         AndroidView(
                             factory = {
@@ -377,12 +270,11 @@ fun YTubeScreen(
                                 .testTag("watch_webview"),
                         )
 
-                        // Watch skeleton while initial video/metadata mounts so there is zero blank flash
                         if (isExpanded && !uiState.isWatchPlayerReady) {
                             WatchLoadingSkeleton()
                         }
 
-                        // Native top-left Minimize chevron + subtle top-center swipe-down handle (only in Expanded mode)
+                        // Native top-left Minimize chevron + top-center swipe-down drag handle
                         if (isExpanded && !uiState.isFullscreen) {
                             var dragDeltaY = 0f
                             Box(
@@ -395,7 +287,7 @@ fun YTubeScreen(
                                             onDragStart = { dragDeltaY = 0f },
                                             onVerticalDrag = { _, dragAmount ->
                                                 dragDeltaY += dragAmount
-                                                if (dragDeltaY > 48f) {
+                                                if (dragDeltaY > 44f) {
                                                     dragDeltaY = 0f
                                                     onMinimizeWatch()
                                                 }
@@ -409,7 +301,7 @@ fun YTubeScreen(
                                         .padding(top = 6.dp)
                                         .size(width = 36.dp, height = 4.dp)
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.35f)),
+                                        .background(Color.White.copy(alpha = 0.4f)),
                                 )
                             }
 
@@ -425,7 +317,7 @@ fun YTubeScreen(
                                     modifier = Modifier
                                         .size(34.dp)
                                         .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.42f)),
+                                        .background(Color.Black.copy(alpha = 0.45f)),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
@@ -437,15 +329,125 @@ fun YTubeScreen(
                                 }
                             }
                         }
+                    }
 
-                        // Tap catcher over the 110x62 miniplayer video box so tapping it expands cleanly
-                        if (isMinimized) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable(onClick = onExpandWatch)
-                                    .testTag("miniplayer_video_tap_target"),
-                            )
+                    // Native Compose Miniplayer Card (Floating at bottom when minimized)
+                    if (isMinimized) {
+                        val cardBg = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF9F9F9)
+                        val borderColor = if (isDark) Color(0xFF2E2E2E) else Color(0xFFE5E5E5)
+                        val videoId = extractYouTubeVideoId(uiState.activeVideoUrl)
+                        val thumbnailUrl = videoId?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = miniBottomPadding)
+                                .fillMaxWidth()
+                                .height(miniHeight)
+                                .clickable(onClick = onExpandWatch)
+                                .testTag("miniplayer_card"),
+                            color = cardBg,
+                            shadowElevation = 10.dp,
+                            tonalElevation = 4.dp,
+                        ) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                HorizontalDivider(color = borderColor, thickness = 1.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable(onClick = onExpandWatch),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 86.dp, height = 48.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.Black),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (thumbnailUrl != null) {
+                                                AsyncImage(
+                                                    model = thumbnailUrl,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Text(
+                                                text = uiState.mediaTitle,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                text = uiState.mediaChannel,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = onToggleWatchPlayPause,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .testTag("miniplayer_play_pause_button"),
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(
+                                                    if (uiState.isPlayingMedia) {
+                                                        R.drawable.ic_pause
+                                                    } else {
+                                                        R.drawable.ic_play_arrow
+                                                    },
+                                                ),
+                                                contentDescription = stringResource(
+                                                    if (uiState.isPlayingMedia) {
+                                                        R.string.action_pause
+                                                    } else {
+                                                        R.string.action_play
+                                                    },
+                                                ),
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(24.dp),
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = onCloseWatch,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .testTag("miniplayer_close_button"),
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_close),
+                                                contentDescription = stringResource(R.string.close_player_desc),
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -494,7 +496,6 @@ private fun WatchLoadingSkeleton() {
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Native edge-to-edge 16:9 black video stage
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -546,14 +547,6 @@ private fun WatchLoadingSkeleton() {
                             .background(shimmerBrush),
                     )
                 }
-                Spacer(modifier = Modifier.height(22.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(shimmerBrush),
-                )
             }
         }
     }

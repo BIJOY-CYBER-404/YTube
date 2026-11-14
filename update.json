@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "1.4.5",
+  "versionCode": 13,
+  "versionName": "1.4.6",
   "mandatory": true,
-  "title": "YTube v1.4.5",
-  "releaseNotes": "Enhanced background play focus retention across apps and robust automatic next video playback (autonav).",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.5.apk"
+  "title": "YTube v1.4.6",
+  "releaseNotes": "Google account auto-login sync, fully functional miniplayer card with high-res thumbnails, and unmuted autoplay on video open.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.6.apk"
 }

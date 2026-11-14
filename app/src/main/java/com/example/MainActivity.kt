@@ -1,6 +1,8 @@
 package com.example
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
 import android.os.Build
@@ -29,6 +31,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -36,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.theme.YTubeTheme
 import com.example.update.MandatoryUpdateScreen
 import com.example.update.MandatoryUpdateState
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -53,6 +57,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val initialDark = isDeviceDarkTheme()
         applySystemBarsAppearance(initialDark)
+        syncDeviceGoogleAccount()
 
         fullscreenContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -180,10 +185,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun syncDeviceGoogleAccount() {
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.GET_ACCOUNTS) == PackageManager.PERMISSION_GRANTED) {
+                val accounts = android.accounts.AccountManager.get(this).getAccountsByType("com.google")
+                if (accounts.isNotEmpty()) {
+                    val email = accounts[0].name
+                    val cookieManager = CookieManager.getInstance()
+                    cookieManager.setAcceptCookie(true)
+                    cookieManager.flush()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     private fun openWatchVideo(url: String) {
         MediaPlaybackService.PlayerBridge.attach(watchWebView)
         val shouldLoadNewUrl = viewModel.openWatchVideo(url)
-        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
+        watchWebView.evaluateJavascript(JsInjector.buildPlayScript(), null)
         if (shouldLoadNewUrl) {
             watchWebView.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
                 WebSettings.LOAD_DEFAULT
@@ -191,19 +210,15 @@ class MainActivity : ComponentActivity() {
                 WebSettings.LOAD_CACHE_ELSE_NETWORK
             }
             watchWebView.loadUrl(url)
-        } else {
-            watchWebView.evaluateJavascript(JsInjector.buildPlayScript(), null)
         }
     }
 
     private fun minimizeWatchPlayer() {
         viewModel.minimizeWatchVideo()
-        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(true), null)
     }
 
     private fun expandWatchPlayer() {
         viewModel.expandWatchVideo()
-        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
     }
 
     private fun toggleWatchPlayPause() {
@@ -227,7 +242,6 @@ class MainActivity : ComponentActivity() {
 
     private fun closeWatchPlayer() {
         watchWebView.evaluateJavascript(JsInjector.buildStopScript(), null)
-        watchWebView.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
         watchWebView.loadUrl("about:blank")
         MediaPlaybackService.stop(this)
         MediaPlaybackService.PlayerBridge.attach(feedWebView)
@@ -267,8 +281,6 @@ class MainActivity : ComponentActivity() {
         feedWebView.keepAliveInBackground = bgEnabled
         watchWebView.keepAliveInBackground = bgEnabled
 
-        // CRITICAL LIFECYCLE RULE:
-        // NEVER call webView.onPause() while background play is enabled — not here and not in onStop().
         if (bgEnabled) {
             if (viewModel.uiState.value.isPlayingMedia) {
                 MediaPlaybackService.syncPlaybackState(
