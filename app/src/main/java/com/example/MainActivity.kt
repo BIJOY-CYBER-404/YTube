@@ -195,6 +195,10 @@ class MainActivity : ComponentActivity() {
                     val cookieManager = CookieManager.getInstance()
                     cookieManager.setAcceptCookie(true)
                     cookieManager.flush()
+                    if (!viewModel.uiState.value.isGoogleSignedIn) {
+                        val encodedEmail = android.net.Uri.encode(email)
+                        feedWebView.loadUrl("https://accounts.google.com/ServiceLogin?Email=$encodedEmail&service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+                    }
                 }
             }
         } catch (_: Exception) {}
