@@ -1,7 +1,8 @@
-package com.example
+package com.example.update
 
 import android.content.Intent
 import android.net.Uri
+import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray

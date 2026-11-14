@@ -1,8 +1,8 @@
 {
-  "versionCode": 4,
-  "versionName": "1.2.1",
+  "versionCode": 5,
+  "versionName": "1.2.2",
   "mandatory": true,
-  "title": "YTube v1.2.1",
-  "releaseNotes": "Reliable GitHub in-app update detection (releases, pre-releases, main/master update.json, no-cache fetch) and v1.2.1 build.",
-  "apkUrl": ""
+  "title": "YTube v1.2.2",
+  "releaseNotes": "Configured BIJOY-CYBER-404/YTube remote update source and light Material 3 update screen.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/releases/latest"
 }

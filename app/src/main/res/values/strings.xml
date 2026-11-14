@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">YTube</string>
     <!-- Optional fallback if GITHUB_RELEASES_REPO is not set in AI Studio Secrets / .env -->
-    <string name="github_releases_repo" translatable="false"></string>
+    <string name="github_releases_repo" translatable="false">BIJOY-CYBER-404/YTube</string>
     <string name="notification_channel_name">YTube Playback</string>
     <string name="notification_channel_description">Media controls for background YouTube audio playback</string>
     <string name="notification_default_title">YTube Audio</string>

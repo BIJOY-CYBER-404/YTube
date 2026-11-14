@@ -31,6 +31,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.theme.TubeViewTheme
+import com.example.update.MandatoryUpdateScreen
+import com.example.update.MandatoryUpdateState
 
 class MainActivity : ComponentActivity() {
 

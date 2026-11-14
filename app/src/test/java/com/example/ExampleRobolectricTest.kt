@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.update.GitHubUpdateManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -22,6 +23,7 @@ class ExampleRobolectricTest {
         val appName = context.getString(R.string.app_name)
         assertEquals("YTube", appName)
         assertEquals("com.ytube.bk", context.packageName)
+        assertEquals("BIJOY-CYBER-404/YTube", context.getString(R.string.github_releases_repo))
     }
 
     @Test
