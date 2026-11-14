@@ -31,6 +31,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -39,11 +40,30 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.theme.YTubeTheme
 import com.example.update.MandatoryUpdateScreen
 import com.example.update.MandatoryUpdateState
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: YTubeViewModel by viewModels()
+
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            val email = account?.email
+            if (!email.isNullOrBlank()) {
+                val encodedEmail = android.net.Uri.encode(email)
+                feedWebView.loadUrl("https://accounts.google.com/AccountChooser?Email=$encodedEmail&service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+            }
+        } catch (_: Exception) {
+            feedWebView.loadUrl("https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+        }
+    }
 
     private lateinit var feedWebView: BackgroundAudioWebView
     private lateinit var watchWebView: BackgroundAudioWebView
@@ -188,24 +208,23 @@ class MainActivity : ComponentActivity() {
 
     private fun syncDeviceGoogleAccount() {
         try {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.GET_ACCOUNTS) == PackageManager.PERMISSION_GRANTED) {
-                val accounts = android.accounts.AccountManager.get(this).getAccountsByType("com.google")
-                if (accounts.isNotEmpty()) {
-                    val email = accounts[0].name
-                    val cookieManager = CookieManager.getInstance()
-                    cookieManager.setAcceptCookie(true)
-                    cookieManager.flush()
-                    if (!viewModel.uiState.value.isGoogleSignedIn) {
-                        val encodedEmail = android.net.Uri.encode(email)
-                        feedWebView.loadUrl("https://accounts.google.com/ServiceLogin?Email=$encodedEmail&service=youtube&continue=https%3A%2F%2Fm.youtube.com")
-                    }
-                }
-            }
+            val cookieManager = CookieManager.getInstance()
+            cookieManager.setAcceptCookie(true)
+            cookieManager.flush()
+            viewModel.checkGoogleSignInStatus()
         } catch (_: Exception) {}
     }
 
     private fun openGoogleSignIn() {
-        feedWebView.loadUrl("https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+        try {
+            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .build()
+            val client = GoogleSignIn.getClient(this, gso)
+            googleSignInLauncher.launch(client.signInIntent)
+        } catch (_: Exception) {
+            feedWebView.loadUrl("https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+        }
     }
 
     private fun openWatchVideo(url: String) {

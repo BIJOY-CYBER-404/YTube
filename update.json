@@ -1,8 +1,8 @@
 {
-  "versionCode": 15,
-  "versionName": "1.4.8",
+  "versionCode": 16,
+  "versionName": "1.4.9",
   "mandatory": true,
-  "title": "YTube v1.4.8",
-  "releaseNotes": "Automatic device Gmail account sync and login integration matching official YouTube and Google app behavior.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.8.apk"
+  "title": "YTube v1.4.9",
+  "releaseNotes": "Added Google Identity and Play Services Auth dependencies for seamless device Google account authentication without startup redirect.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.9.apk"
 }
