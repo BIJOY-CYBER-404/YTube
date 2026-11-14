@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -124,8 +125,14 @@ fun MandatoryUpdateScreen(
         label = "icon_float",
     )
 
-    val lightBadgeGreenBg = Color(0xFFE7F8EF)
-    val lightBadgeGreenFg = Color(0xFF0E7A45)
+    val isDark = isSystemInDarkTheme()
+    val badgeBg = if (isDark) Color(0xFF132D22) else Color(0xFFE7F8EF)
+    val badgeFg = if (isDark) Color(0xFF32D583) else Color(0xFF0E7A45)
+    val gradientColors = if (isDark) {
+        listOf(Color(0xFF1C0C0E), Color(0xFF0F0F0F), Color(0xFF14161D))
+    } else {
+        listOf(Color(0xFFFFF2F3), Color(0xFFFFFFFF), Color(0xFFF5F7FB))
+    }
 
     Surface(
         modifier = Modifier
@@ -136,15 +143,7 @@ fun MandatoryUpdateScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFFFF2F3),
-                            Color(0xFFFFFFFF),
-                            Color(0xFFF5F7FB),
-                        ),
-                    ),
-                )
+                .background(Brush.verticalGradient(colors = gradientColors))
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 20.dp),
@@ -228,10 +227,10 @@ fun MandatoryUpdateScreen(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(lightBadgeGreenBg)
+                            .background(badgeBg)
                             .border(
                                 width = 1.dp,
-                                color = lightBadgeGreenFg.copy(alpha = 0.25f),
+                                color = badgeFg.copy(alpha = 0.25f),
                                 shape = RoundedCornerShape(20.dp),
                             )
                             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -244,7 +243,7 @@ fun MandatoryUpdateScreen(
                                 release.versionName,
                             ),
                             style = MaterialTheme.typography.labelLarge,
-                            color = lightBadgeGreenFg,
+                            color = badgeFg,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.4.sp,
                         )
@@ -256,7 +255,7 @@ fun MandatoryUpdateScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.elevatedCardColors(
-                            containerColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
                         ),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
                     ) {
@@ -360,6 +359,7 @@ fun MandatoryUpdateScreen(
                                     textAlign = TextAlign.Center,
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
+                                val trackColor = MaterialTheme.colorScheme.surfaceVariant
                                 if (state.progressPercent >= 0) {
                                     LinearProgressIndicator(
                                         progress = { (state.progressPercent / 100f).coerceIn(0f, 1f) },
@@ -369,7 +369,7 @@ fun MandatoryUpdateScreen(
                                             .clip(RoundedCornerShape(8.dp))
                                             .testTag("in_app_update_progress"),
                                         color = YTubeRed,
-                                        trackColor = Color(0xFFECEEF2),
+                                        trackColor = trackColor,
                                     )
                                 } else {
                                     LinearProgressIndicator(
@@ -379,7 +379,7 @@ fun MandatoryUpdateScreen(
                                             .clip(RoundedCornerShape(8.dp))
                                             .testTag("in_app_update_progress"),
                                         color = YTubeRed,
-                                        trackColor = Color(0xFFECEEF2),
+                                        trackColor = trackColor,
                                     )
                                 }
                             }

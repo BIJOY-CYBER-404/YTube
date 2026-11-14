@@ -192,9 +192,11 @@ class ExampleRobolectricTest {
 
     @Test
     fun `js injector includes native touch styling and first content ready signal`() {
-        val script = JsInjector.buildProtectionScript(backgroundPlayEnabled = true)
+        val script = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true)
         assertTrue(script.contains("-webkit-tap-highlight-color: transparent"))
         assertTrue(script.contains("onFirstContentReady"))
         assertTrue(script.contains("rel = 'prefetch'"))
+        assertTrue(script.contains("colorScheme = 'dark'"))
+        assertTrue(JsInjector.buildThemeSyncScript(isDarkTheme = false).contains("colorScheme='light'"))
     }
 }

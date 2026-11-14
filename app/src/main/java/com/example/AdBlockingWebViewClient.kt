@@ -25,6 +25,7 @@ class AdBlockingWebViewClient(
     private val adBlocker: AdBlocker,
     private val resourceCache: ResourceCacheManager? = null,
     private val isBackgroundPlayEnabled: () -> Boolean,
+    private val isDarkTheme: () -> Boolean = { false },
     private val onPageStateChanged: (url: String?, title: String?, canGoBack: Boolean) -> Unit,
     private val onMainFrameError: (hasError: Boolean) -> Unit,
     private val onFirstVisualCommit: () -> Unit = {},
@@ -122,7 +123,10 @@ class AdBlockingWebViewClient(
 
     private fun injectProtectionScripts(view: WebView?) {
         view ?: return
-        val script = JsInjector.buildProtectionScript(isBackgroundPlayEnabled())
+        val script = JsInjector.buildProtectionScript(
+            backgroundPlayEnabled = isBackgroundPlayEnabled(),
+            isDarkTheme = isDarkTheme(),
+        )
         view.evaluateJavascript(script, null)
     }
 

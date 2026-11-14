@@ -1,6 +1,7 @@
 package com.example
 
 import android.annotation.SuppressLint
+import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
 import android.os.Build
 import android.os.Bundle
@@ -20,9 +21,11 @@ import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
@@ -47,10 +50,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
-        }
+        val initialDark = isDeviceDarkTheme()
+        applySystemBarsAppearance(initialDark)
 
         fullscreenContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -60,12 +61,21 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        webView = createConfiguredWebView()
+        webView = createConfiguredWebView(initialDark)
         MediaPlaybackService.PlayerBridge.attach(webView)
+        syncYouTubeThemeCookie(initialDark)
         webView.loadUrl(YTubeUiState.YOUTUBE_HOME_URL)
 
         setContent {
-            YTubeTheme(darkTheme = false) {
+            val isDarkTheme = isSystemInDarkTheme()
+            SideEffect {
+                applySystemBarsAppearance(isDarkTheme)
+                applyWebViewTheme(webView, isDarkTheme)
+                syncYouTubeThemeCookie(isDarkTheme)
+                webView.evaluateJavascript(JsInjector.buildThemeSyncScript(isDarkTheme), null)
+            }
+
+            YTubeTheme(darkTheme = isDarkTheme) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
                 NotificationPermissionPrompt(
@@ -198,13 +208,70 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val isDark = (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        applySystemBarsAppearance(isDark)
+        applyWebViewTheme(webView, isDark)
+        syncYouTubeThemeCookie(isDark)
+        webView.evaluateJavascript(JsInjector.buildThemeSyncScript(isDark), null)
+    }
+
+    private fun isDeviceDarkTheme(): Boolean {
+        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun applySystemBarsAppearance(isDark: Boolean) {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !isDark
+            isAppearanceLightNavigationBars = !isDark
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyWebViewTheme(targetWebView: WebView, isDark: Boolean) {
+        targetWebView.setBackgroundColor(
+            if (isDark) AndroidColor.parseColor("#0F0F0F") else AndroidColor.WHITE,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            targetWebView.settings.isAlgorithmicDarkeningAllowed = isDark
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            targetWebView.settings.forceDark = if (isDark) {
+                WebSettings.FORCE_DARK_ON
+            } else {
+                WebSettings.FORCE_DARK_OFF
+            }
+        }
+    }
+
+    private fun syncYouTubeThemeCookie(isDark: Boolean) {
+        val cookieManager = CookieManager.getInstance()
+        val themeValue = if (isDark) "f6=400" else "f6=80000"
+        val existingCookies = cookieManager.getCookie("https://m.youtube.com").orEmpty()
+        val existingPref = existingCookies
+            .split(';')
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("PREF=") }
+            ?.removePrefix("PREF=")
+            .orEmpty()
+
+        val filteredParams = existingPref
+            .split('&')
+            .filter { it.isNotBlank() && !it.startsWith("f6=") }
+        val newPref = (filteredParams + themeValue).joinToString("&")
+        val cookieString = "PREF=$newPref; Domain=.youtube.com; Path=/; Secure; SameSite=Lax"
+        cookieManager.setCookie("https://m.youtube.com", cookieString)
+        cookieManager.flush()
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
-    private fun createConfiguredWebView(): BackgroundAudioWebView {
+    private fun createConfiguredWebView(initialDark: Boolean): BackgroundAudioWebView {
         val initialBg = viewModel.uiState.value.backgroundPlayEnabled
         val view = BackgroundAudioWebView(this).apply {
             keepAliveInBackground = initialBg
-            setBackgroundColor(AndroidColor.WHITE)
             overScrollMode = View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
@@ -244,6 +311,8 @@ class MainActivity : ComponentActivity() {
             addJavascriptInterface(YTubeJsBridge(), "YTubeBridge")
         }
 
+        applyWebViewTheme(view, initialDark)
+
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(view, true)
@@ -254,6 +323,7 @@ class MainActivity : ComponentActivity() {
             adBlocker = viewModel.adBlocker,
             resourceCache = viewModel.resourceCache,
             isBackgroundPlayEnabled = { viewModel.uiState.value.backgroundPlayEnabled },
+            isDarkTheme = { isDeviceDarkTheme() },
             onPageStateChanged = { url, title, canGoBack ->
                 viewModel.updatePageState(url, title, canGoBack)
             },

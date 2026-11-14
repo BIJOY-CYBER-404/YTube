@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "1.4.0",
+  "versionCode": 8,
+  "versionName": "1.4.1",
   "mandatory": true,
-  "title": "YTube v1.4.0",
-  "releaseNotes": "Full YTube rebrand, direct inside-the-app APK download & install, ServiceWorker cache interception, and native YouTube-style launch skeleton.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.0.apk"
+  "title": "YTube v1.4.1",
+  "releaseNotes": "Synced app and YouTube WebView theme with device default Light/Dark mode, and updated launcher icon with transparent background.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.1.apk"
 }

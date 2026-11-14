@@ -1,16 +1,16 @@
 # YTube
 
-**YTube** (`com.ytube.bk`, `v1.4.0`, `versionCode 7`) is a lightweight, Light-Theme Android YouTube client (`https://m.youtube.com`) with ad blocking, background audio playback, native preload & Service Worker asset caching, pull-to-refresh, and mandatory inside-the-app GitHub updates.
+**YTube** (`com.ytube.bk`, `v1.4.1`, `versionCode 8`) is a lightweight Android YouTube client (`https://m.youtube.com`) that automatically matches your device Light/Dark theme, with ad blocking, background audio playback, native preload & Service Worker asset caching, pull-to-refresh, and mandatory inside-the-app GitHub updates.
 
 ## Features
 
 1. **Native Preload & Two-Tier + Service Worker Caching (`YTubeApplication` + `ResourceCacheManager`)**
    - Pre-warms WebView subsystems and CDN TLS connections (`m.youtube.com`, `i.ytimg.com`, `yt3.ggpht.com`, `fonts.gstatic.com`) at startup.
    - Intercepts both WebView and Service Worker requests to serve cached static `/s/` bundles, fonts, and thumbnails from L1 RAM + L2 Disk cache (`40 MB` cap).
-   - Displays a YouTube-style Light Theme shimmer feed & bottom-bar skeleton during boot, hides "Open in YouTube app" web banners, preloads upcoming card thumbnails, and removes browser tap highlights/overscroll/text-selection tells.
+   - Displays a YouTube-style device-themed shimmer feed & bottom-bar skeleton during boot, hides "Open in YouTube app" web banners, preloads upcoming card thumbnails, and removes browser tap highlights/overscroll/text-selection tells.
 
-2. **Light Theme Full-Bleed YouTube + Pull-to-Refresh**
-   - Clean Light Theme status/navigation bars and headerless full-bleed browsing.
+2. **Device-Default Light/Dark Theme + Pull-to-Refresh**
+   - Automatically syncs system bars, Material 3 UI, and YouTube WebView (`PREF` theme cookie, CSS `color-scheme`, and WebView darkening) with the device's Light/Dark setting.
    - `SwipeRefreshLayout` pull-to-refresh at scroll top (disabled during fullscreen video and Shorts).
 
 3. **Ad-Free YouTube (`AdBlocker` + `AdBlockingWebViewClient` + `JsInjector`)**

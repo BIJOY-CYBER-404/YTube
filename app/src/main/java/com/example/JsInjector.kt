@@ -16,11 +16,18 @@ package com.example
  */
 object JsInjector {
 
-    fun buildProtectionScript(backgroundPlayEnabled: Boolean): String {
+    fun buildProtectionScript(
+        backgroundPlayEnabled: Boolean,
+        isDarkTheme: Boolean = false,
+    ): String {
         val bgLiteral = if (backgroundPlayEnabled) "true" else "false"
+        val schemeLiteral = if (isDarkTheme) "dark" else "light"
         return """
             (function() {
                 window.__ytubeBgPlay = $bgLiteral;
+                if (document.documentElement) {
+                    document.documentElement.style.colorScheme = '$schemeLiteral';
+                }
 
                 // 1. Page Visibility API override (gated by window.__ytubeBgPlay)
                 if (!window.__ytubeVisibilityPatched) {
@@ -280,6 +287,11 @@ object JsInjector {
                 }
             })();
         """.trimIndent()
+    }
+
+    fun buildThemeSyncScript(isDarkTheme: Boolean): String {
+        val schemeLiteral = if (isDarkTheme) "dark" else "light"
+        return "(function(){if(document.documentElement){document.documentElement.style.colorScheme='$schemeLiteral';}})();"
     }
 
     fun buildBackgroundPlayToggleScript(enabled: Boolean): String {

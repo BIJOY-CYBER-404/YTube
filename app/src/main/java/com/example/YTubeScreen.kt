@@ -18,6 +18,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,8 +64,6 @@ import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.ui.theme.YTubeRed
 
-private val YouTubeLightBg = Color(0xFFFFFFFF)
-
 @Composable
 fun NotificationPermissionPrompt(backgroundPlayEnabled: Boolean) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !backgroundPlayEnabled) return
@@ -91,14 +90,17 @@ fun YTubeScreen(
     fullscreenContainer: FrameLayout,
     onReloadClick: () -> Unit,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val containerBg = MaterialTheme.colorScheme.background
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(YouTubeLightBg),
+            .background(containerBg),
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = YouTubeLightBg,
+            containerColor = containerBg,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { innerPadding ->
             Box(
@@ -122,11 +124,6 @@ fun YTubeScreen(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                             )
-                            setProgressBackgroundColorSchemeColor(AndroidColor.WHITE)
-                            setColorSchemeColors(
-                                AndroidColor.parseColor("#FF2A36"),
-                                AndroidColor.parseColor("#0F0F0F"),
-                            )
                             setOnChildScrollUpCallback { _, _ ->
                                 webView.scrollY > 0 || webView.canScrollVertically(-1)
                             }
@@ -144,6 +141,13 @@ fun YTubeScreen(
                         }
                     },
                     update = { swipeRefresh ->
+                        swipeRefresh.setProgressBackgroundColorSchemeColor(
+                            if (isDark) AndroidColor.parseColor("#212121") else AndroidColor.WHITE,
+                        )
+                        swipeRefresh.setColorSchemeColors(
+                            AndroidColor.parseColor("#FF2A36"),
+                            if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
+                        )
                         val isShorts = uiState.currentUrl.contains("/shorts", ignoreCase = true)
                         swipeRefresh.isEnabled = !uiState.isFullscreen && !isShorts
                         if (swipeRefresh.isRefreshing &&
@@ -210,6 +214,7 @@ fun YTubeScreen(
 
 @Composable
 private fun InitialPreloadSkeleton() {
+    val isDark = isSystemInDarkTheme()
     val infiniteTransition = rememberInfiniteTransition(label = "preload_shimmer")
     val shimmerOffset by infiniteTransition.animateFloat(
         initialValue = -400f,
@@ -221,11 +226,15 @@ private fun InitialPreloadSkeleton() {
         label = "shimmer_offset",
     )
 
+    val shimmerBase = if (isDark) Color(0xFF1F1F1F) else Color(0xFFECEEF2)
+    val shimmerHighlight = if (isDark) Color(0xFF2E2E2E) else Color(0xFFF6F7FA)
+    val dividerColor = if (isDark) Color(0xFF272727) else Color(0xFFECEEF2)
+
     val shimmerBrush = Brush.linearGradient(
         colors = listOf(
-            Color(0xFFECEEF2),
-            Color(0xFFF6F7FA),
-            Color(0xFFECEEF2),
+            shimmerBase,
+            shimmerHighlight,
+            shimmerBase,
         ),
         start = Offset(shimmerOffset, 0f),
         end = Offset(shimmerOffset + 360f, 180f),
@@ -235,7 +244,7 @@ private fun InitialPreloadSkeleton() {
         modifier = Modifier
             .fillMaxSize()
             .testTag("preload_skeleton_overlay"),
-        color = YouTubeLightBg,
+        color = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -349,7 +358,7 @@ private fun InitialPreloadSkeleton() {
             }
 
             // Bottom navigation tab bar skeleton (Home / Shorts / Subscriptions / You)
-            HorizontalDivider(color = Color(0xFFECEEF2))
+            HorizontalDivider(color = dividerColor)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -384,7 +393,7 @@ private fun InitialPreloadSkeleton() {
 private fun OfflineErrorOverlay(onRetry: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = YouTubeLightBg,
+        color = MaterialTheme.colorScheme.background,
     ) {
         Column(
             modifier = Modifier
