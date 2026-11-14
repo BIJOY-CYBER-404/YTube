@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "1.4.13",
+  "versionCode": 22,
+  "versionName": "1.4.15",
   "mandatory": true,
-  "title": "YTube v1.4.13",
-  "releaseNotes": "Performance boost for silky-smooth scrolling, faster video & page loading (non-blocking cache miss HTTP/3 + gzip preload, offscreen tile pre-rasterization, lightweight SPA transitions), and strict reload protection while videos or Shorts are playing.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.13.apk"
+  "title": "YTube v1.4.15",
+  "releaseNotes": "Eliminated forced offscreen WebView RenderNode/tile allocations and alpha GPU layers for improved emulator & device graphics stability.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.15.apk"
 }

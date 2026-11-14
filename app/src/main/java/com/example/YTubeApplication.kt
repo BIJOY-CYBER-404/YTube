@@ -47,7 +47,7 @@ class YTubeApplication : Application() {
                                         ByteArrayInputStream(ByteArray(0)),
                                     )
                                 }
-                                return resourceCache.intercept(request)
+                                return null
                             }
                         },
                     )

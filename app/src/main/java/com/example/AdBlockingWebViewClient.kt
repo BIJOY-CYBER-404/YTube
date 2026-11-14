@@ -54,11 +54,6 @@ class AdBlockingWebViewClient(
                 ByteArrayInputStream(ByteArray(0)),
             )
         }
-        if (request != null) {
-            resourceCache?.intercept(request)?.let { cached ->
-                return cached
-            }
-        }
         return super.shouldInterceptRequest(view, request)
     }
 
@@ -129,7 +124,7 @@ class AdBlockingWebViewClient(
         super.onPageFinished(view, url)
         if (url == "about:blank") return
         injectProtectionScripts(view)
-        flushSessionCookies(url)
+        flushSessionCookiesIfAuth(url)
         onFirstVisualCommit()
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
@@ -216,11 +211,11 @@ class AdBlockingWebViewClient(
         view.evaluateJavascript(script, null)
     }
 
-    private fun flushSessionCookies(url: String?) {
+    private fun flushSessionCookiesIfAuth(url: String?) {
         if (url == null) return
         try {
             val host = Uri.parse(url).host?.lowercase(Locale.ROOT) ?: return
-            if (isInternalYouTubeOrAuthHost(host)) {
+            if (isAuthHost(host)) {
                 CookieManager.getInstance().flush()
             }
         } catch (_: Throwable) {

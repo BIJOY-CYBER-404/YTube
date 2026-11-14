@@ -34,8 +34,9 @@ pagead/
 googleads
 /api/stats/ads
 /pagead/
-get_midroll_info
-ad_break
+/get_midroll_info
+&ad_break
+/ad_break
 /ptracking
 /pcs/activeview
 adformat=

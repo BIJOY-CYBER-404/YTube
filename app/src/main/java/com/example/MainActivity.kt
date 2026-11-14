@@ -5,6 +5,10 @@ import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
@@ -86,6 +90,8 @@ class MainActivity : ComponentActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var wasPausedForBgOff: Boolean = false
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,6 +100,7 @@ class MainActivity : ComponentActivity() {
         val initialDark = isDeviceDarkTheme()
         applySystemBarsAppearance(initialDark)
         syncDeviceGoogleAccount()
+        registerNetworkRecoveryCallback()
 
         shakeDetector = ShakeDetector(this) {
             runOnUiThread {
@@ -196,6 +203,7 @@ class MainActivity : ComponentActivity() {
                                 feedWebView.settings.cacheMode = cacheMode
                                 feedWebView.reload()
                             },
+                            onReloadWatchClick = { reloadActiveWatchVideo() },
                             onMinimizeWatch = { minimizeWatchPlayer() },
                             onExpandWatch = { expandWatchPlayer() },
                             onToggleWatchPlayPause = { toggleWatchPlayPause() },
@@ -301,15 +309,58 @@ class MainActivity : ComponentActivity() {
         val activeWatch = getOrCreateWatchWebView()
         MediaPlaybackService.PlayerBridge.attach(activeWatch)
         val shouldLoadNewUrl = viewModel.openWatchVideo(url)
-        activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
-        activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
         if (shouldLoadNewUrl) {
+            activeWatch.stopLoading()
             activeWatch.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
                 WebSettings.LOAD_DEFAULT
             } else {
                 WebSettings.LOAD_CACHE_ELSE_NETWORK
             }
             activeWatch.loadUrl(url)
+        } else {
+            activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
+            activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
+        }
+    }
+
+    private fun reloadActiveWatchVideo() {
+        val activeUrl = viewModel.uiState.value.activeVideoUrl ?: return
+        val activeWatch = getOrCreateWatchWebView()
+        viewModel.setWatchError(false)
+        activeWatch.stopLoading()
+        activeWatch.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
+            WebSettings.LOAD_DEFAULT
+        } else {
+            WebSettings.LOAD_CACHE_ELSE_NETWORK
+        }
+        activeWatch.loadUrl(activeUrl)
+    }
+
+    private fun registerNetworkRecoveryCallback() {
+        try {
+            val cm = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            connectivityManager = cm
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    runOnUiThread {
+                        val state = viewModel.uiState.value
+                        if (state.hasMainFrameError) {
+                            viewModel.setMainFrameError(false)
+                            feedWebView.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            feedWebView.reload()
+                        }
+                        if (state.hasWatchError && state.playerMode != YTubePlayerMode.HIDDEN) {
+                            reloadActiveWatchVideo()
+                        }
+                    }
+                }
+            }
+            networkCallback = callback
+            cm.registerNetworkCallback(request, callback)
+        } catch (_: Exception) {
         }
     }
 
@@ -423,6 +474,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         shakeDetector.stop()
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {
+        }
+        networkCallback = null
         if (isFinishing) {
             MediaPlaybackService.stop(this)
         }
@@ -547,7 +603,6 @@ class MainActivity : ComponentActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     safeBrowsingEnabled = true
                 }
-                offscreenPreRaster = true
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
@@ -590,6 +645,8 @@ class MainActivity : ComponentActivity() {
             onMainFrameError = { hasError ->
                 if (!isWatchRole) {
                     viewModel.setMainFrameError(hasError)
+                } else {
+                    viewModel.setWatchError(hasError)
                 }
             },
             onFirstVisualCommit = {

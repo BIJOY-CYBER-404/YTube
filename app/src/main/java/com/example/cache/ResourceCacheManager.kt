@@ -62,9 +62,8 @@ class ResourceCacheManager private constructor(context: Context) {
 
     fun warmUpAsync() {
         ioScope.launch {
-            preconnectHosts()
-            preloadSavedBundles()
-            trimDiskCacheIfNeeded()
+            clearLegacyDiskCache()
+            warmDnsConnections()
         }
     }
 
@@ -77,85 +76,36 @@ class ResourceCacheManager private constructor(context: Context) {
     }
 
     /**
-     * Serves static cacheable YouTube assets immediately (<1ms) from RAM/Disk cache on hit.
-     * On a cache miss, returns `null` immediately so Chromium uses its native HTTP/3 + Brotli
-     * multiplexed stack with zero Java blocking, while asynchronously populating the cache
-     * in the background for subsequent loads and warm starts.
+     * Pass-through to Chromium's native C++ HTTP/3 + Brotli + CacheStorage stack so mobile bandwidth
+     * is never saturated by duplicate Java downloads or stalled by synthetic CORS/bundle responses.
      */
-    fun intercept(request: WebResourceRequest): WebResourceResponse? {
-        if (!request.method.equals("GET", ignoreCase = true)) return null
-        val url = request.url?.toString() ?: return null
-        val policy = classifyAsset(url) ?: return null
+    @Suppress("UNUSED_PARAMETER")
+    fun intercept(request: WebResourceRequest): WebResourceResponse? = null
 
-        val key = sha256(url)
-        val now = System.currentTimeMillis()
-        val requestOrigin = request.requestHeaders?.entries
-            ?.firstOrNull { it.key.equals("Origin", ignoreCase = true) }
-            ?.value
-
-        // 1. L1 RAM hit
-        memoryCache.get(key)?.let { memAsset ->
-            if (!memAsset.isExpired(now)) {
-                return buildResponse(memAsset.mimeType, memAsset.bytes, requestOrigin)
-            } else {
-                memoryCache.remove(key)
-            }
-        }
-
-        // 2. L2 Disk hit
-        readFromDisk(key, policy.ttlMs, now)?.let { diskAsset ->
-            memoryCache.put(key, diskAsset)
-            return buildResponse(diskAsset.mimeType, diskAsset.bytes, requestOrigin)
-        }
-
-        // 3. Cache miss -> let Chromium load via native HTTP/3 immediately & warm cache async
-        if (inFlightUrls.add(key)) {
-            val headersCopy = request.requestHeaders?.let { HashMap(it) }
-            ioScope.launch {
-                try {
-                    val fetched = fetchAndStore(url, key, policy, headersCopy)
-                    if (fetched != null && policy.isPreloadBundle) {
-                        recordBundleUrl(url)
-                    }
-                } finally {
-                    inFlightUrls.remove(key)
+    private fun clearLegacyDiskCache() {
+        try {
+            if (cacheDir.exists()) {
+                cacheDir.listFiles()?.forEach { file ->
+                    file.delete()
                 }
             }
+            memoryCache.evictAll()
+        } catch (_: Exception) {
         }
-        return null
     }
 
-    private fun preconnectHosts() {
-        for (hostUrl in PRECONNECT_URLS) {
-            var conn: HttpURLConnection? = null
+    private fun warmDnsConnections() {
+        val hosts = listOf(
+            "m.youtube.com",
+            "www.youtube.com",
+            "i.ytimg.com",
+            "yt3.ggpht.com",
+            "fonts.gstatic.com",
+        )
+        for (host in hosts) {
             try {
-                conn = (URL(hostUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "HEAD"
-                    connectTimeout = 3_500
-                    readTimeout = 3_500
-                    instanceFollowRedirects = false
-                }
-                conn.responseCode
+                java.net.InetAddress.getByName(host)
             } catch (_: Exception) {
-            } finally {
-                conn?.disconnect()
-            }
-        }
-    }
-
-    private fun preloadSavedBundles() {
-        val urls = synchronized(trackedBundles) { trackedBundles.toList() }
-        val now = System.currentTimeMillis()
-        for (url in urls.take(MAX_PRELOAD_BUNDLES)) {
-            val policy = classifyAsset(url) ?: continue
-            val key = sha256(url)
-            if (memoryCache.get(key)?.takeUnless { it.isExpired(now) } != null) continue
-
-            val diskAsset = readFromDisk(key, policy.ttlMs, now)
-            if (diskAsset != null) {
-                memoryCache.put(key, diskAsset)
-            } else if (isNetworkAvailable()) {
-                fetchAndStore(url, key, policy, emptyMap())
             }
         }
     }

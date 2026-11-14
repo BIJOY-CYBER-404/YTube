@@ -56,7 +56,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -127,6 +126,7 @@ fun YTubeScreen(
     watchRecoveryEpoch: Int,
     fullscreenContainer: FrameLayout,
     onReloadClick: () -> Unit,
+    onReloadWatchClick: () -> Unit,
     onMinimizeWatch: () -> Unit,
     onExpandWatch: () -> Unit,
     onToggleWatchPlayPause: () -> Unit,
@@ -326,9 +326,9 @@ fun YTubeScreen(
                         modifier = Modifier
                             .let { mod ->
                                 if (isExpanded) {
-                                    mod.fillMaxSize().zIndex(5f).alpha(1f)
+                                    mod.fillMaxSize().zIndex(5f)
                                 } else {
-                                    mod.size(1.dp).zIndex(-1f).alpha(0.01f)
+                                    mod.size(1.dp).zIndex(-1f)
                                 }
                             },
                     ) {
@@ -350,8 +350,36 @@ fun YTubeScreen(
                             )
                         }
 
-                        if (isExpanded && !uiState.isWatchPlayerReady) {
+                        if (isExpanded && !uiState.isWatchPlayerReady && !uiState.hasWatchError) {
                             WatchLoadingSkeleton()
+                        }
+
+                        if (isExpanded && uiState.hasWatchError) {
+                            OfflineErrorOverlay(onRetry = onReloadWatchClick)
+                        } else if (isExpanded && uiState.isWatchSlow && !uiState.isFullscreen) {
+                            Surface(
+                                onClick = onReloadWatchClick,
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.9f),
+                                shadowElevation = 6.dp,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 20.dp)
+                                    .zIndex(7f)
+                                    .testTag("watch_slow_reload_pill"),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.watch_slow_reload_hint),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    )
+                                }
+                            }
                         }
 
                         // Native top-left Minimize chevron + top-center swipe-down drag handle

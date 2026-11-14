@@ -44,6 +44,8 @@ data class YTubeUiState(
     val playerMode: YTubePlayerMode = YTubePlayerMode.HIDDEN,
     val activeVideoUrl: String? = null,
     val isWatchPlayerReady: Boolean = false,
+    val hasWatchError: Boolean = false,
+    val isWatchSlow: Boolean = false,
     val isGoogleSignedIn: Boolean = false,
     val showDebugScreen: Boolean = false,
     val updateState: MandatoryUpdateState = MandatoryUpdateState.None,
@@ -110,12 +112,15 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
         val currentId = extractYouTubeVideoId(current.activeVideoUrl)
         val newId = extractYouTubeVideoId(url)
         val sameVideo = current.playerMode != YTubePlayerMode.HIDDEN &&
-            ((currentId != null && currentId == newId) || current.activeVideoUrl == url)
+            ((currentId != null && currentId == newId) || current.activeVideoUrl == url) &&
+            !current.hasWatchError
         _uiState.update {
             it.copy(
                 playerMode = YTubePlayerMode.EXPANDED,
                 activeVideoUrl = url,
                 isWatchPlayerReady = if (sameVideo) it.isWatchPlayerReady else false,
+                hasWatchError = false,
+                isWatchSlow = false,
                 mediaTitle = if (sameVideo) it.mediaTitle else "Loading video…",
                 mediaChannel = if (sameVideo) it.mediaChannel else "YouTube",
             )
@@ -123,8 +128,11 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
         if (!sameVideo) {
             viewModelScope.launch {
                 delay(WATCH_SKELETON_MAX_MS)
-                if (_uiState.value.activeVideoUrl == url) {
-                    markWatchPlayerReady()
+                val stateAfterSkeleton = _uiState.value
+                if (stateAfterSkeleton.activeVideoUrl == url && !stateAfterSkeleton.hasWatchError) {
+                    if (!stateAfterSkeleton.isWatchPlayerReady) {
+                        _uiState.update { it.copy(isWatchPlayerReady = true, isWatchSlow = true) }
+                    }
                 }
             }
         }
@@ -147,8 +155,24 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markWatchPlayerReady() {
-        if (_uiState.value.isWatchPlayerReady) return
-        _uiState.update { it.copy(isWatchPlayerReady = true) }
+        val current = _uiState.value
+        if (current.isWatchPlayerReady && !current.isWatchSlow && !current.hasWatchError) return
+        _uiState.update {
+            it.copy(
+                isWatchPlayerReady = true,
+                hasWatchError = false,
+                isWatchSlow = false,
+            )
+        }
+    }
+
+    fun setWatchError(hasError: Boolean) {
+        _uiState.update {
+            it.copy(
+                hasWatchError = hasError,
+                isWatchSlow = false,
+            )
+        }
     }
 
     fun minimizeWatchVideo() {
@@ -169,6 +193,8 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
                 playerMode = YTubePlayerMode.HIDDEN,
                 activeVideoUrl = null,
                 isWatchPlayerReady = false,
+                hasWatchError = false,
+                isWatchSlow = false,
                 isPlayingMedia = false,
                 mediaTitle = "YTube Audio",
                 mediaChannel = "YouTube",
@@ -436,6 +462,6 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
         private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v4"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L
-        private const val WATCH_SKELETON_MAX_MS = 1_600L
+        private const val WATCH_SKELETON_MAX_MS = 3_500L
     }
 }

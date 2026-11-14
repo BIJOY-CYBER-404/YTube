@@ -59,4 +59,5 @@
     <string name="debug_tap_expand_hint">Tap a log to inspect details</string>
     <string name="debug_empty_title">Everything Looks Healthy</string>
     <string name="debug_empty_subtitle">No crashes or errors captured yet. Shake your phone anytime if something goes wrong.</string>
+    <string name="watch_slow_reload_hint">Taking longer than usual · Tap to reload</string>
 </resources>

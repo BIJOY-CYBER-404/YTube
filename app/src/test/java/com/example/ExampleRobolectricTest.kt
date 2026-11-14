@@ -308,5 +308,11 @@ class ExampleRobolectricTest {
         assertNotNull(ResourceCacheManager.classifyAsset("https://i.ytimg.com/vi/abc123/hq720.jpg?sqp=123"))
         assertNotNull(ResourceCacheManager.classifyAsset("https://m.youtube.com/s/desktop/1234/base.js"))
         assertNull(ResourceCacheManager.classifyAsset("https://m.youtube.com/shorts/xyz123?feature=share"))
+
+        val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = false, isWatchRole = true)
+        assertTrue(watchScript.contains("v0.readyState >= 2 || hasWatchMeta"))
+        assertTrue(watchScript.contains("videoNode.playsInline = true"))
+        assertFalse(watchScript.contains("rootMargin: '600px 0px'"))
+        assertFalse(watchScript.contains("[class*=\"player-placeholder\"]"))
     }
 }
