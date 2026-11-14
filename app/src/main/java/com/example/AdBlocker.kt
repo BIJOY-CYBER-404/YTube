@@ -28,7 +28,15 @@ class AdBlocker(
         if (url.isNullOrBlank()) return false
 
         val normalizedUrl = url.lowercase(Locale.ROOT)
-        // Fast-path: extract host without Uri.parse allocations
+        if (normalizedUrl.contains("consent.google.") ||
+            normalizedUrl.contains("consent.youtube.") ||
+            normalizedUrl.contains("accounts.google.") ||
+            normalizedUrl.contains("fundingchoicesmessages.google.") ||
+            normalizedUrl.contains("myaccount.google.")
+        ) {
+            return false
+        }
+
         val host = extractHostFast(normalizedUrl)
         if (host != null && isBlockedHost(host)) {
             return true

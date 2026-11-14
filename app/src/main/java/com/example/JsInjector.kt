@@ -126,14 +126,12 @@ object JsInjector {
                     'html, body { overscroll-behavior-y: none !important; touch-action: manipulation !important; -webkit-font-smoothing: antialiased !important; }\n' +
                     '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }\n' +
                     'ytm-mobile-topbar-renderer .mobile-topbar-logo, ytm-home-logo, #home-icon { cursor: default !important; }\n' +
-                    // Watch-role native YouTube-app player layout: remove web top bar above video & eliminate phantom 56.25% placeholder gap
+                    // Watch-role native YouTube-app player layout: remove web top bar above video
                     'html.ytube-watch-role ytm-mobile-topbar-renderer, html.ytube-watch-role ytm-header, html.ytube-watch-role header.ghost-header { display: none !important; height: 0 !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; }\n' +
-                    'html.ytube-watch-role ytm-app, html.ytube-watch-role ytm-watch, html.ytube-watch-role ytm-app.sticky-player { margin-top: 0 !important; padding-top: 0 !important; }\n' +
-                    'html.ytube-watch-role #player-container-id { position: sticky !important; top: 0 !important; z-index: 200 !important; width: 100% !important; background: #000 !important; margin: 0 !important; padding: 0 !important; aspect-ratio: 16 / 9 !important; height: calc(100vw * 9 / 16) !important; max-height: calc(100vw * 9 / 16) !important; min-height: 0 !important; }\n' +
-                    'html.ytube-watch-role #player-container-id .player-size, html.ytube-watch-role #player-container-id #player { width: 100% !important; height: 100% !important; max-height: 100% !important; min-height: 0 !important; padding-bottom: 0 !important; margin: 0 !important; }\n' +
+                    'html.ytube-watch-role ytm-app, html.ytube-watch-role ytm-watch { margin-top: 0 !important; padding-top: 0 !important; }\n' +
+                    'html.ytube-watch-role #player-container-id { position: sticky !important; top: 0 !important; z-index: 200 !important; width: 100% !important; background: #000 !important; }\n' +
                     'html.ytube-watch-role #player-container-id video, html.ytube-watch-role #movie_player video, html.ytube-watch-role .html5-video-player video { width: 100% !important; height: 100% !important; object-fit: contain !important; }\n' +
-                    'html.ytube-watch-role .player-placeholder-wrapper, html.ytube-watch-role .player-placeholder, html.ytube-watch-role ytm-app .player-placeholder-wrapper, html.ytube-watch-role .player-size.sticky-player:not(#player-container-id *), html.ytube-watch-role #player-cinematics-container, html.ytube-watch-role .player-cinematics { display: none !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; padding: 0 !important; margin: 0 !important; }\n' +
-                    'html.ytube-watch-role .watch-below-the-player, html.ytube-watch-role .watch-main-col, html.ytube-watch-role ytm-slim-video-metadata-section-renderer, html.ytube-watch-role ytm-single-column-watch-next-results-renderer { margin-top: 0 !important; padding-top: 0 !important; }\n' +
+                    'html.ytube-watch-role .watch-below-the-player, html.ytube-watch-role .watch-main-col { margin-top: 0 !important; padding-top: 0 !important; }\n' +
                     'html.ytube-watch-role .ytp-play-progress, html.ytube-watch-role .ytp-swatch-background-color, html.ytube-watch-role .ytm-progress-bar-played { background-color: #FF0033 !important; }\n' +
                     // Live miniplayer mode inside shrunken watch WebView
                     'html.ytube-minimized, html.ytube-minimized body { overflow: hidden !important; background: #000 !important; margin: 0 !important; padding: 0 !important; }\n' +
@@ -301,42 +299,7 @@ object JsInjector {
                 }
 
                 // 2d. Collapse phantom placeholder spaces below player (mark collapsed nodes to avoid style thrashing) & automate video unmuting
-                var collapseWatchSpacing = function() {
-                    if (window.__ytubeRole !== 'watch') return;
-                    try {
-                        var placeholders = document.querySelectorAll(
-                            '.player-placeholder-wrapper, .player-placeholder, ytm-app .player-placeholder-wrapper, #player-cinematics-container, .player-cinematics'
-                        );
-                        for (var i = 0; i < placeholders.length; i++) {
-                            var ph = placeholders[i];
-                            if (!ph.__ytubeCollapsed) {
-                                ph.__ytubeCollapsed = true;
-                                ph.style.setProperty('display', 'none', 'important');
-                                ph.style.setProperty('height', '0px', 'important');
-                                ph.style.setProperty('min-height', '0px', 'important');
-                                ph.style.setProperty('padding', '0px', 'important');
-                                ph.style.setProperty('margin', '0px', 'important');
-                            }
-                        }
-                        var appEl = document.querySelector('ytm-app, ytm-watch');
-                        if (appEl && !appEl.__ytubeCollapsed) {
-                            appEl.__ytubeCollapsed = true;
-                            appEl.style.setProperty('padding-top', '0px', 'important');
-                            appEl.style.setProperty('margin-top', '0px', 'important');
-                        }
-                        var belowEls = document.querySelectorAll(
-                            '.watch-below-the-player, ytm-slim-video-metadata-section-renderer, .watch-main-col, ytm-single-column-watch-next-results-renderer'
-                        );
-                        for (var j = 0; j < belowEls.length; j++) {
-                            var bel = belowEls[j];
-                            if (!bel.__ytubeCollapsed) {
-                                bel.__ytubeCollapsed = true;
-                                bel.style.setProperty('padding-top', '0px', 'important');
-                                bel.style.setProperty('margin-top', '0px', 'important');
-                            }
-                        }
-                    } catch (e) {}
-                };
+                var collapseWatchSpacing = function() {};
                 collapseWatchSpacing();
 
                 var triggerUnmute = function() {
@@ -432,7 +395,10 @@ object JsInjector {
                 notifyContentReady();
 
                 // 3. Playback control hooks for MediaPlaybackService & Miniplayer
+                window.__ytubeUserPaused = false;
+
                 window.__ytubePlay = function() {
+                    window.__ytubeUserPaused = false;
                     var video = document.querySelector('video');
                     if (video) {
                         triggerUnmute();
@@ -444,6 +410,7 @@ object JsInjector {
                 };
 
                 window.__ytubePause = function() {
+                    window.__ytubeUserPaused = true;
                     var video = document.querySelector('video');
                     if (video && !video.paused) {
                         video.pause();

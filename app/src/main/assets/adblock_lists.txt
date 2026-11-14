@@ -22,7 +22,6 @@ adclick.g.doubleclick.net
 static.doubleclick.net
 s0.2mdn.net
 www.googleadservices.com
-fundingchoicesmessages.google.com
 imasdk.googleapis.com
 innovid.com
 moatads.com

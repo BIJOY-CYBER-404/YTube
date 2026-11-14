@@ -1,8 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "1.4.18",
+  "versionCode": 29,
+  "versionName": "1.4.22",
   "mandatory": true,
-  "title": "YTube v1.4.18",
-  "releaseNotes": "Fixed YouTube Error 153 (video player configuration error) by switching back to standard mobile watch URLs with proper Referer headers and unflagged User-Agent.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.18.apk"
+  "title": "YTube v1.4.22",
+  "releaseNotes": "Removed aggressive player container CSS overrides and element-collapsing rules so YouTube's mobile player DOM mounts and initializes natively without video unavailability or configuration errors.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.22.apk"
 }

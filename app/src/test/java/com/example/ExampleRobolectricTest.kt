@@ -40,6 +40,8 @@ class ExampleRobolectricTest {
         assertFalse(adBlocker.isAdRequest("https://m.youtube.com/watch?v=dQw4w9WgXcQ"))
         assertFalse(adBlocker.isAdRequest("https://rr2---sn-4g5e6nsz.googlevideo.com/videoplayback?expire=123"))
         assertFalse(adBlocker.isAdRequest("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"))
+        assertFalse(adBlocker.isAdRequest("https://fundingchoicesmessages.google.com/i/tag=1"))
+        assertFalse(adBlocker.isAdRequest("https://consent.google.com/m?continue=https://m.youtube.com"))
     }
 
     @Test
@@ -215,6 +217,7 @@ class ExampleRobolectricTest {
 
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/watch?v=dQw4w9WgXcQ")))
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://youtu.be/dQw4w9WgXcQ")))
+        assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://www.youtube.com/embed/dQw4w9WgXcQ")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/results?search_query=music")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/shorts/abc123")))
     }
@@ -287,7 +290,7 @@ class ExampleRobolectricTest {
         val feedScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = true, isWatchRole = false)
         assertTrue(feedScript.contains("overscroll-behavior-y: none !important"))
         assertTrue(feedScript.contains("touch-action: manipulation !important"))
-        assertTrue(feedScript.contains("__ytubeCollapsed"))
+        assertTrue(feedScript.contains("ytm-mobile-topbar-renderer"))
         assertTrue(feedScript.contains("__ytubeTickCount"))
 
         val spaSync = JsInjector.buildSpaSyncScript(
@@ -312,7 +315,6 @@ class ExampleRobolectricTest {
         val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = false, isWatchRole = true)
         assertTrue(watchScript.contains("v0 || hasWatchMeta"))
         assertTrue(watchScript.contains("videoNode.playsInline = true"))
-        assertFalse(watchScript.contains("rootMargin: '600px 0px'"))
         assertFalse(watchScript.contains("[class*=\"player-placeholder\"]"))
     }
 }

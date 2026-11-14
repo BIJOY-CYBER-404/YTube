@@ -308,7 +308,13 @@ class MainActivity : ComponentActivity() {
     private fun openWatchVideo(url: String) {
         val activeWatch = getOrCreateWatchWebView()
         MediaPlaybackService.PlayerBridge.attach(activeWatch)
-        val shouldLoadNewUrl = viewModel.openWatchVideo(url)
+        val videoId = extractYouTubeVideoId(url)
+        val targetLoadUrl = if (!videoId.isNullOrBlank()) {
+            "https://m.youtube.com/watch?v=$videoId"
+        } else {
+            url
+        }
+        val shouldLoadNewUrl = viewModel.openWatchVideo(targetLoadUrl)
         if (shouldLoadNewUrl) {
             activeWatch.stopLoading()
             activeWatch.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
@@ -316,8 +322,12 @@ class MainActivity : ComponentActivity() {
             } else {
                 WebSettings.LOAD_CACHE_ELSE_NETWORK
             }
-            val headers = mapOf("Referer" to "https://m.youtube.com/")
-            activeWatch.loadUrl(url, headers)
+            val headers = mapOf("Referer" to "https://www.youtube.com/")
+            activeWatch.loadUrl(targetLoadUrl, headers)
+            activeWatch.postDelayed({
+                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
+                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
+            }, 200)
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
@@ -325,7 +335,11 @@ class MainActivity : ComponentActivity() {
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 1500)
+            }, 1200)
+            activeWatch.postDelayed({
+                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
+                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
+            }, 2000)
         } else {
             activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
             activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
