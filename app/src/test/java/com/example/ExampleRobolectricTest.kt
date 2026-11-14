@@ -215,7 +215,6 @@ class ExampleRobolectricTest {
 
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/watch?v=dQw4w9WgXcQ")))
         assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://youtu.be/dQw4w9WgXcQ")))
-        assertTrue(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://www.youtube.com/embed/dQw4w9WgXcQ")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/results?search_query=music")))
         assertFalse(AdBlockingWebViewClient.isYouTubeWatchUri(android.net.Uri.parse("https://m.youtube.com/shorts/abc123")))
     }

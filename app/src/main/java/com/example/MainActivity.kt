@@ -308,13 +308,7 @@ class MainActivity : ComponentActivity() {
     private fun openWatchVideo(url: String) {
         val activeWatch = getOrCreateWatchWebView()
         MediaPlaybackService.PlayerBridge.attach(activeWatch)
-        val videoId = extractYouTubeVideoId(url)
-        val targetLoadUrl = if (!videoId.isNullOrBlank()) {
-            "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1"
-        } else {
-            url
-        }
-        val shouldLoadNewUrl = viewModel.openWatchVideo(targetLoadUrl)
+        val shouldLoadNewUrl = viewModel.openWatchVideo(url)
         if (shouldLoadNewUrl) {
             activeWatch.stopLoading()
             activeWatch.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
@@ -322,15 +316,16 @@ class MainActivity : ComponentActivity() {
             } else {
                 WebSettings.LOAD_CACHE_ELSE_NETWORK
             }
-            activeWatch.loadUrl(targetLoadUrl)
+            val headers = mapOf("Referer" to "https://m.youtube.com/")
+            activeWatch.loadUrl(url, headers)
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 300)
+            }, 600)
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 900)
+            }, 1500)
         } else {
             activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
             activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)

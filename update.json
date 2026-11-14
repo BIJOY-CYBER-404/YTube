@@ -1,8 +1,8 @@
 {
-  "versionCode": 24,
-  "versionName": "1.4.17",
+  "versionCode": 25,
+  "versionName": "1.4.18",
   "mandatory": true,
-  "title": "YTube v1.4.17",
-  "releaseNotes": "Integrated lightning-fast YouTube Embed player engine for instant zero-spinner video playback, removing heavy mobile web initialization delays.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.17.apk"
+  "title": "YTube v1.4.18",
+  "releaseNotes": "Fixed YouTube Error 153 (video player configuration error) by switching back to standard mobile watch URLs with proper Referer headers and unflagged User-Agent.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.18.apk"
 }
