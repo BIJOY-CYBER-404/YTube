@@ -112,6 +112,21 @@ class MainActivity : ComponentActivity() {
                                 webView.reload()
                             },
                         )
+
+                        if (uiState.isInitialContentReady && uiState.showAuthorDialog) {
+                            AuthorInfoDialog(
+                                onContactWhatsApp = {
+                                    viewModel.dismissAuthorDialog()
+                                    try {
+                                        startActivity(AuthorContactHelper.createWhatsAppIntent())
+                                    } catch (_: Exception) {
+                                    }
+                                },
+                                onDismiss = {
+                                    viewModel.dismissAuthorDialog()
+                                },
+                            )
+                        }
                     }
 
                     AnimatedVisibility(
@@ -167,6 +182,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        CookieManager.getInstance().flush()
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
         webView.keepAliveInBackground = bgEnabled
 
@@ -190,6 +206,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        CookieManager.getInstance().flush()
         val bgEnabled = viewModel.uiState.value.backgroundPlayEnabled
         if (!bgEnabled && !wasPausedForBgOff) {
             webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
@@ -289,6 +306,11 @@ class MainActivity : ComponentActivity() {
                 } else {
                     WebSettings.LOAD_CACHE_ELSE_NETWORK
                 }
+                userAgentString = userAgentString
+                    .replace("; wv)", ")")
+                    .replace("Version/4.0 ", "")
+                setSupportMultipleWindows(false)
+                javaScriptCanOpenWindowsAutomatically = false
                 mediaPlaybackRequiresUserGesture = false
                 loadsImagesAutomatically = true
                 useWideViewPort = true

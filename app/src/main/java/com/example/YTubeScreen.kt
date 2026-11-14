@@ -148,8 +148,12 @@ fun YTubeScreen(
                             AndroidColor.parseColor("#FF2A36"),
                             if (isDark) AndroidColor.WHITE else AndroidColor.parseColor("#0F0F0F"),
                         )
-                        val isShorts = uiState.currentUrl.contains("/shorts", ignoreCase = true)
-                        swipeRefresh.isEnabled = !uiState.isFullscreen && !isShorts
+                        val url = uiState.currentUrl
+                        val isShorts = url.contains("/shorts", ignoreCase = true)
+                        val isWatch = url.contains("/watch", ignoreCase = true)
+                        val isAuth = url.contains("accounts.google.", ignoreCase = true) ||
+                            url.contains("accounts.youtube.", ignoreCase = true)
+                        swipeRefresh.isEnabled = !uiState.isFullscreen && !isShorts && !isWatch && !isAuth
                         if (swipeRefresh.isRefreshing &&
                             (uiState.loadingProgress >= 90 || uiState.hasMainFrameError)
                         ) {
@@ -172,19 +176,6 @@ fun YTubeScreen(
                     exit = fadeOut(tween(240)),
                 ) {
                     InitialPreloadSkeleton()
-                }
-
-                if (!uiState.isFullscreen && uiState.loadingProgress in 1..99) {
-                    LinearProgressIndicator(
-                        progress = { uiState.loadingProgress / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .align(Alignment.TopCenter)
-                            .testTag("page_progress_bar"),
-                        color = YTubeRed,
-                        trackColor = Color.Transparent,
-                    )
                 }
 
                 AnimatedVisibility(

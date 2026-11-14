@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -17,8 +18,9 @@ import java.util.Locale
 
 /**
  * WebViewClient enforcing network-level ad blocking via [AdBlocker], serving cached
- * static assets via [ResourceCacheManager], injecting SPA-resilient ad/visibility scripts
- * via [JsInjector], and routing external links out to the system browser.
+ * static assets via [ResourceCacheManager], keeping YouTube and Google Sign-In flows
+ * inside the WebView with persistent cookie flushing, and routing external links out
+ * to the system browser.
  */
 class AdBlockingWebViewClient(
     private val context: Context,
@@ -69,7 +71,7 @@ class AdBlockingWebViewClient(
         }
 
         val host = uri.host?.lowercase(Locale.ROOT) ?: return false
-        if (scheme == "https" && isInternalYouTubeHost(host)) {
+        if (scheme == "https" && isInternalYouTubeOrAuthHost(host)) {
             return false
         }
 
@@ -91,6 +93,7 @@ class AdBlockingWebViewClient(
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         injectProtectionScripts(view)
+        flushSessionCookies(url)
         onFirstVisualCommit()
         onPageStateChanged(url, view?.title, view?.canGoBack() == true)
     }
@@ -130,6 +133,17 @@ class AdBlockingWebViewClient(
         view.evaluateJavascript(script, null)
     }
 
+    private fun flushSessionCookies(url: String?) {
+        if (url == null) return
+        try {
+            val host = Uri.parse(url).host?.lowercase(Locale.ROOT) ?: return
+            if (isInternalYouTubeOrAuthHost(host)) {
+                CookieManager.getInstance().flush()
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun openExternalUri(uri: Uri): Boolean {
         return try {
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -151,8 +165,23 @@ class AdBlockingWebViewClient(
             "ytimg.com",
         )
 
-        fun isInternalYouTubeHost(host: String): Boolean {
+        private val INTERNAL_AUTH_HOSTS = setOf(
+            "accounts.google.com",
+            "accounts.youtube.com",
+            "myaccount.google.com",
+            "ogs.google.com",
+            "gds.google.com",
+            "consent.google.com",
+            "consent.youtube.com",
+        )
+
+        fun isInternalYouTubeHost(host: String): Boolean = isInternalYouTubeOrAuthHost(host)
+
+        fun isInternalYouTubeOrAuthHost(host: String): Boolean {
             val normalized = host.lowercase(Locale.ROOT).trimEnd('.')
+            if (INTERNAL_AUTH_HOSTS.contains(normalized) || normalized.startsWith("accounts.google.")) {
+                return true
+            }
             return INTERNAL_HOST_SUFFIXES.any { suffix ->
                 normalized == suffix || normalized.endsWith(".$suffix")
             }

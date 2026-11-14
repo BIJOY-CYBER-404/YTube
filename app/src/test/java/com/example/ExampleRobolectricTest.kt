@@ -48,6 +48,9 @@ class ExampleRobolectricTest {
         assertTrue(AdBlockingWebViewClient.isInternalYouTubeHost("www.youtube.com"))
         assertTrue(AdBlockingWebViewClient.isInternalYouTubeHost("youtu.be"))
         assertTrue(AdBlockingWebViewClient.isInternalYouTubeHost("rr1---sn-test.googlevideo.com"))
+        assertTrue(AdBlockingWebViewClient.isInternalYouTubeOrAuthHost("accounts.google.com"))
+        assertTrue(AdBlockingWebViewClient.isInternalYouTubeOrAuthHost("accounts.youtube.com"))
+        assertTrue(AdBlockingWebViewClient.isInternalYouTubeOrAuthHost("myaccount.google.com"))
 
         assertFalse(AdBlockingWebViewClient.isInternalYouTubeHost("example.com"))
         assertFalse(AdBlockingWebViewClient.isInternalYouTubeHost("notyoutube.com"))
@@ -197,6 +200,23 @@ class ExampleRobolectricTest {
         assertTrue(script.contains("onFirstContentReady"))
         assertTrue(script.contains("rel = 'prefetch'"))
         assertTrue(script.contains("colorScheme = 'dark'"))
+        assertTrue(script.contains("__ytubeLogoClickDisabled"))
+        assertTrue(script.contains("accounts.google."))
         assertTrue(JsInjector.buildThemeSyncScript(isDarkTheme = false).contains("colorScheme='light'"))
+    }
+
+    @Test
+    fun `author contact helper creates valid whatsapp intent for developer number`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertEquals("Bijoy Kumar Sarkar", context.getString(R.string.author_name))
+
+        val intent = AuthorContactHelper.createWhatsAppIntent()
+        assertEquals(android.content.Intent.ACTION_VIEW, intent.action)
+        val data = intent.data
+        assertNotNull(data)
+        assertEquals("https", data?.scheme)
+        assertEquals("wa.me", data?.host)
+        assertEquals("/8801605081296", data?.path)
+        assertTrue(data?.getQueryParameter("text")?.contains("Bijoy Kumar Sarkar") == true)
     }
 }

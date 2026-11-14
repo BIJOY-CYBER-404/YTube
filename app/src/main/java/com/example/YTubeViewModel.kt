@@ -32,6 +32,7 @@ data class YTubeUiState(
     val mediaTitle: String = "YTube Audio",
     val mediaChannel: String = "YouTube",
     val blockedCount: Int = 0,
+    val showAuthorDialog: Boolean = false,
     val updateState: MandatoryUpdateState = MandatoryUpdateState.None,
 ) {
     companion object {
@@ -49,6 +50,7 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(
         YTubeUiState(
             backgroundPlayEnabled = prefs.getBoolean(KEY_BACKGROUND_PLAY, true),
+            showAuthorDialog = !prefs.getBoolean(KEY_AUTHOR_DIALOG_SHOWN, false),
         ),
     )
     val uiState: StateFlow<YTubeUiState> = _uiState.asStateFlow()
@@ -73,6 +75,11 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     fun markInitialContentReady() {
         if (_uiState.value.isInitialContentReady) return
         _uiState.update { it.copy(isInitialContentReady = true) }
+    }
+
+    fun dismissAuthorDialog() {
+        prefs.edit().putBoolean(KEY_AUTHOR_DIALOG_SHOWN, true).apply()
+        _uiState.update { it.copy(showAuthorDialog = false) }
     }
 
     fun checkForRemoteUpdate(force: Boolean = false) {
@@ -301,6 +308,7 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val PREFS_NAME = "ytube_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
+        private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v2"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L
     }

@@ -7,12 +7,13 @@ package com.example
  * 1. Override Page Visibility API when background play is enabled so YouTube's player
  *    does not pause when the app is minimized or the screen turns off.
  * 2. Inject cosmetic CSS hiding leftover ad containers, "Open in YouTube app" web banners,
- *    tap highlights, and non-input text selection so browsing feels native.
- * 3. Preconnect CDNs, prefetch tapped watch/shorts links on touchstart, and pre-warm
+ *    mobile-web footers, tap highlights, and non-input text selection so browsing feels native.
+ * 3. Disable page reload when tapping the top-bar YouTube text/logo (smooth scroll-to-top only).
+ * 4. Preconnect CDNs, prefetch tapped watch/shorts links on touchstart, and pre-warm
  *    upcoming card thumbnails via IntersectionObserver.
- * 4. Run a 500 ms SPA-safe timer that auto-clicks skip buttons, fast-forwards in-stream ads
+ * 5. Run a 500 ms SPA-safe timer that auto-clicks skip buttons, fast-forwards in-stream ads
  *    at 16x, and reports playback state/title back to Android for MediaSession sync.
- * 5. Expose window.__ytubePlay / __ytubePause / __ytubeStop for MediaSession.
+ * 6. Expose window.__ytubePlay / __ytubePause / __ytubeStop for MediaSession.
  */
 object JsInjector {
 
@@ -27,6 +28,12 @@ object JsInjector {
                 window.__ytubeBgPlay = $bgLiteral;
                 if (document.documentElement) {
                     document.documentElement.style.colorScheme = '$schemeLiteral';
+                }
+
+                // Only apply YouTube-specific patches on YouTube hosts (leave Google Sign-In pages clean)
+                var currentHost = (window.location && window.location.hostname) ? window.location.hostname.toLowerCase() : '';
+                if (currentHost.indexOf('accounts.google.') !== -1 || currentHost === 'myaccount.google.com') {
+                    return;
                 }
 
                 // 1. Page Visibility API override (gated by window.__ytubeBgPlay)
@@ -70,7 +77,7 @@ object JsInjector {
                     window.addEventListener('pagehide', blockEventIfBg, true);
                 }
 
-                // 2. Cosmetic ad-container hiding + "Open in YouTube App" web prompt hiding + native touch CSS
+                // 2. Cosmetic ad-container hiding + "Open in YouTube App" / web-tell hiding + native touch CSS
                 if (!document.getElementById('ytube-adblock-css')) {
                     var style = document.createElement('style');
                     style.id = 'ytube-adblock-css';
@@ -93,14 +100,39 @@ object JsInjector {
                         'ytm-mealbar-promo-renderer',
                         'ytm-upsell-dialog-renderer',
                         'ytm-app-promo',
+                        'ytm-feed-nudge-renderer',
+                        '.ytm-bottom-sheet-promo',
                         '.open-app-button',
                         '.ytm-open-app-button',
                         'a[href^="intent://"]'
                     ].join(', ') + ' { display: none !important; visibility: hidden !important; height: 0 !important; }\n' +
                     '* { -webkit-tap-highlight-color: transparent !important; }\n' +
                     'html, body { overscroll-behavior-y: contain !important; -webkit-font-smoothing: antialiased !important; }\n' +
-                    '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }';
+                    '*:not(input):not(textarea):not([contenteditable="true"]) { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }\n' +
+                    'ytm-mobile-topbar-renderer .mobile-topbar-logo, ytm-home-logo, #home-icon { cursor: default !important; }';
                     (document.head || document.documentElement).appendChild(style);
+                }
+
+                // 2a. Disable page reload when clicking YouTube logo/text in the top bar
+                if (!window.__ytubeLogoClickDisabled) {
+                    window.__ytubeLogoClickDisabled = true;
+                    document.addEventListener('click', function(ev) {
+                        try {
+                            var target = ev.target;
+                            if (!target || typeof target.closest !== 'function') return;
+                            var logoEl = target.closest(
+                                'ytm-home-logo, #home-icon, .mobile-topbar-logo, ytm-mobile-topbar-renderer a[href="/"], header a[href="/"], a[aria-label*="YouTube Home" i], [id*="logo"] a[href="/"]'
+                            );
+                            if (logoEl) {
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                ev.stopImmediatePropagation();
+                                if (window.scrollY > 0) {
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }
+                            }
+                        } catch (e) {}
+                    }, true);
                 }
 
                 // 2b. Preconnect critical media/thumbnail origins, touchstart link prefetch, & thumbnail prewarm
