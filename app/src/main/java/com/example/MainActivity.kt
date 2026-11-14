@@ -58,10 +58,12 @@ class MainActivity : ComponentActivity() {
             val email = account?.email
             if (!email.isNullOrBlank()) {
                 val encodedEmail = android.net.Uri.encode(email)
-                feedWebView.loadUrl("https://accounts.google.com/AccountChooser?Email=$encodedEmail&service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+                feedWebView.loadUrl("https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fm.youtube.com&Email=$encodedEmail")
+            } else {
+                feedWebView.loadUrl("https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
             }
         } catch (_: Exception) {
-            feedWebView.loadUrl("https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
+            feedWebView.loadUrl("https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
         }
     }
 
@@ -498,6 +500,7 @@ class MainActivity : ComponentActivity() {
             onPageStateChanged = { url, title, canGoBack ->
                 if (!isWatchRole) {
                     viewModel.updatePageState(url, title, canGoBack)
+                    viewModel.checkGoogleSignInStatus()
                 }
             },
             onMainFrameError = { hasError ->
