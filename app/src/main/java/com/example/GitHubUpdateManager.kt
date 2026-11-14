@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -18,13 +19,12 @@ data class GitHubReleaseInfo(
 )
 
 /**
- * Checks GitHub for newer YTube APK updates using:
- * 1) GitHub Releases API (`https://api.github.com/repos/<owner>/<repo>/releases/latest`), and
- * 2) Raw repository `update.json` fallback (`https://raw.githubusercontent.com/<owner>/<repo>/main/update.json`).
+ * Checks GitHub for newer YTube updates across:
+ * 1) GitHub Releases API (`/releases/latest` and `/releases?per_page=1` including pre-releases), and
+ * 2) Raw repository `update.json` (`main` and `master` branches, with cache disabled).
  *
- * Opens the verified HTTPS GitHub APK asset URL in Android's system browser / Download Manager
- * rather than requesting REQUEST_INSTALL_PACKAGES directly inside the app, avoiding Play Protect
- * dropper security warnings.
+ * Returns whichever source advertises a newer version than the installed build, and falls back to the
+ * release page URL if an explicit `.apk` asset URL is omitted.
  */
 class GitHubUpdateManager {
 
@@ -36,22 +36,58 @@ class GitHubUpdateManager {
         val cleanSlug = repoSlug.trim().trim('/')
         if (!isValidRepoSlug(cleanSlug)) return@withContext null
 
-        val apiUrl = "https://api.github.com/repos/$cleanSlug/releases/latest"
-        fetchTextFromUrl(apiUrl, acceptJson = true)?.let { rawJson ->
-            val fromRelease = parseReleaseJson(rawJson, currentVersionName)
-            if (fromRelease != null) return@withContext fromRelease
+        val releaseCandidate = fetchFromReleasesApi(cleanSlug, currentVersionName)
+        val manifestCandidate = fetchFromUpdateJson(cleanSlug, currentVersionName, currentVersionCode)
+
+        when {
+            releaseCandidate != null && manifestCandidate != null -> {
+                if (isNewerVersion(manifestCandidate.versionName, releaseCandidate.versionName)) {
+                    manifestCandidate
+                } else {
+                    releaseCandidate
+                }
+            }
+            releaseCandidate != null -> releaseCandidate
+            else -> manifestCandidate
+        }
+    }
+
+    private fun fetchFromReleasesApi(
+        cleanSlug: String,
+        currentVersionName: String,
+    ): GitHubReleaseInfo? {
+        val latestUrl = "https://api.github.com/repos/$cleanSlug/releases/latest"
+        fetchTextFromUrl(latestUrl, acceptJson = true)?.let { rawJson ->
+            parseReleaseJson(rawJson, currentVersionName, cleanSlug)?.let { return it }
         }
 
-        val rawManifestUrl = "https://raw.githubusercontent.com/$cleanSlug/main/update.json"
-        fetchTextFromUrl(rawManifestUrl, acceptJson = false)?.let { rawManifest ->
-            return@withContext parseUpdateManifestJson(
-                rawJson = rawManifest,
-                currentVersionName = currentVersionName,
-                currentVersionCode = currentVersionCode,
-            )
+        val allReleasesUrl = "https://api.github.com/repos/$cleanSlug/releases?per_page=5"
+        fetchTextFromUrl(allReleasesUrl, acceptJson = true)?.let { rawArray ->
+            return parseReleasesArrayJson(rawArray, currentVersionName, cleanSlug)
         }
+        return null
+    }
 
-        null
+    private fun fetchFromUpdateJson(
+        cleanSlug: String,
+        currentVersionName: String,
+        currentVersionCode: Int,
+    ): GitHubReleaseInfo? {
+        val timestamp = System.currentTimeMillis()
+        for (branch in listOf("main", "master")) {
+            val rawManifestUrl =
+                "https://raw.githubusercontent.com/$cleanSlug/$branch/update.json?t=$timestamp"
+            fetchTextFromUrl(rawManifestUrl, acceptJson = false)?.let { rawManifest ->
+                parseUpdateManifestJson(
+                    rawJson = rawManifest,
+                    currentVersionName = currentVersionName,
+                    currentVersionCode = currentVersionCode,
+                    repoSlug = cleanSlug,
+                    branch = branch,
+                )?.let { return it }
+            }
+        }
+        return null
     }
 
     fun createBrowserDownloadIntent(release: GitHubReleaseInfo): Intent {
@@ -66,8 +102,11 @@ class GitHubUpdateManager {
         return try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
+                useCaches = false
                 connectTimeout = 10_000
                 readTimeout = 10_000
+                setRequestProperty("Cache-Control", "no-cache, no-store")
+                setRequestProperty("Pragma", "no-cache")
                 if (acceptJson) {
                     setRequestProperty("Accept", "application/vnd.github+json")
                 }
@@ -93,8 +132,32 @@ class GitHubUpdateManager {
             return parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()
         }
 
-        fun parseReleaseJson(rawJson: String, currentVersionName: String): GitHubReleaseInfo? {
-            val json = JSONObject(rawJson)
+        fun parseReleasesArrayJson(
+            rawArrayJson: String,
+            currentVersionName: String,
+            repoSlug: String = "",
+        ): GitHubReleaseInfo? {
+            val array = JSONArray(rawArrayJson)
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                parseReleaseObject(item, currentVersionName, repoSlug)?.let { return it }
+            }
+            return null
+        }
+
+        fun parseReleaseJson(
+            rawJson: String,
+            currentVersionName: String,
+            repoSlug: String = "",
+        ): GitHubReleaseInfo? {
+            return parseReleaseObject(JSONObject(rawJson), currentVersionName, repoSlug)
+        }
+
+        private fun parseReleaseObject(
+            json: JSONObject,
+            currentVersionName: String,
+            repoSlug: String,
+        ): GitHubReleaseInfo? {
             if (json.optBoolean("draft", false)) return null
 
             val tagName = json.optString("tag_name", "").trim()
@@ -103,23 +166,35 @@ class GitHubUpdateManager {
                 return null
             }
 
-            val assets = json.optJSONArray("assets") ?: return null
+            val assets = json.optJSONArray("assets")
             var apkUrl = ""
             var apkName = ""
             var apkSize = 0L
 
-            for (i in 0 until assets.length()) {
-                val asset = assets.optJSONObject(i) ?: continue
-                val name = asset.optString("name", "")
-                val downloadUrl = asset.optString("browser_download_url", "")
-                if (name.endsWith(".apk", ignoreCase = true) &&
-                    downloadUrl.startsWith("https://", ignoreCase = true)
-                ) {
-                    apkUrl = downloadUrl
-                    apkName = name
-                    apkSize = asset.optLong("size", 0L)
-                    break
+            if (assets != null) {
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i) ?: continue
+                    val name = asset.optString("name", "")
+                    val downloadUrl = asset.optString("browser_download_url", "")
+                    if (name.endsWith(".apk", ignoreCase = true) &&
+                        downloadUrl.startsWith("https://", ignoreCase = true)
+                    ) {
+                        apkUrl = downloadUrl
+                        apkName = name
+                        apkSize = asset.optLong("size", 0L)
+                        break
+                    }
                 }
+            }
+
+            if (apkUrl.isEmpty()) {
+                val htmlUrl = json.optString("html_url", "").trim()
+                apkUrl = when {
+                    htmlUrl.startsWith("https://", ignoreCase = true) -> htmlUrl
+                    repoSlug.isNotBlank() -> "https://github.com/$repoSlug/releases/latest"
+                    else -> ""
+                }
+                apkName = "YTube-v$normalizedRemote.apk"
             }
 
             if (apkUrl.isEmpty()) return null
@@ -138,24 +213,34 @@ class GitHubUpdateManager {
             rawJson: String,
             currentVersionName: String,
             currentVersionCode: Int,
+            repoSlug: String = "",
+            branch: String = "main",
         ): GitHubReleaseInfo? {
             val json = JSONObject(rawJson)
             val remoteVersionName = normalizeVersion(json.optString("versionName", ""))
             val remoteVersionCode = json.optInt("versionCode", 0)
-            val apkUrl = json.optString("apkUrl", "").trim()
-
-            if (!apkUrl.startsWith("https://", ignoreCase = true)) return null
+            val rawApkUrl = json.optString("apkUrl", "").trim()
 
             val isNewer = remoteVersionCode > currentVersionCode ||
                 (remoteVersionName.isNotEmpty() && isNewerVersion(remoteVersionName, currentVersionName))
             if (!isNewer) return null
+
+            val resolvedApkUrl = when {
+                rawApkUrl.startsWith("https://", ignoreCase = true) -> rawApkUrl
+                rawApkUrl.isNotEmpty() && repoSlug.isNotBlank() -> {
+                    val cleanPath = rawApkUrl.trimStart('/')
+                    "https://github.com/$repoSlug/raw/$branch/$cleanPath"
+                }
+                repoSlug.isNotBlank() -> "https://github.com/$repoSlug/releases/latest"
+                else -> return null
+            }
 
             val displayVersion = remoteVersionName.ifEmpty { remoteVersionCode.toString() }
             return GitHubReleaseInfo(
                 versionName = displayVersion,
                 title = json.optString("title", "").ifBlank { "YTube v$displayVersion" },
                 releaseNotes = json.optString("releaseNotes", "").trim(),
-                apkDownloadUrl = apkUrl,
+                apkDownloadUrl = resolvedApkUrl,
                 apkFileName = "YTube-v$displayVersion.apk",
                 apkSizeBytes = json.optLong("apkSizeBytes", 0L),
             )
@@ -163,8 +248,7 @@ class GitHubUpdateManager {
 
         fun normalizeVersion(rawVersion: String): String {
             return rawVersion.trim()
-                .removePrefix("v")
-                .removePrefix("V")
+                .dropWhile { !it.isDigit() }
                 .substringBefore('-')
                 .substringBefore('+')
                 .trim()

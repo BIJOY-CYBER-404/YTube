@@ -45,6 +45,8 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
     )
     val uiState: StateFlow<TubeViewUiState> = _uiState.asStateFlow()
 
+    private var lastCheckTimestampMs: Long = 0L
+
     init {
         adBlocker.blockedCount
             .onEach { count ->
@@ -52,15 +54,14 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
             }
             .launchIn(viewModelScope)
 
-        checkForRemoteUpdate()
+        checkForRemoteUpdate(force = true)
     }
 
-    fun checkForRemoteUpdate() {
-        val repoSlug = BuildConfig.GITHUB_RELEASES_REPO
-        if (!GitHubUpdateManager.isValidRepoSlug(repoSlug)) {
-            _uiState.update { it.copy(updateState = MandatoryUpdateState.None) }
-            return
-        }
+    fun checkForRemoteUpdate(force: Boolean = false) {
+        val repoSlug = resolveRepoSlug() ?: return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastCheckTimestampMs < UPDATE_CHECK_THROTTLE_MS) return
+        lastCheckTimestampMs = now
 
         viewModelScope.launch {
             val release = updateManager.fetchLatestRelease(
@@ -78,6 +79,16 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
                 )
             }
         }
+    }
+
+    private fun resolveRepoSlug(): String? {
+        val fromSecret = BuildConfig.GITHUB_RELEASES_REPO
+        if (GitHubUpdateManager.isValidRepoSlug(fromSecret)) return fromSecret
+
+        val fromResource = getApplication<Application>().getString(R.string.github_releases_repo)
+        if (GitHubUpdateManager.isValidRepoSlug(fromResource)) return fromResource
+
+        return null
     }
 
     fun launchBrowserUpdate(openIntent: (Intent) -> Unit) {
@@ -148,5 +159,6 @@ class TubeViewViewModel(application: Application) : AndroidViewModel(application
     companion object {
         private const val PREFS_NAME = "tubeview_prefs"
         private const val KEY_BACKGROUND_PLAY = "background_play_enabled"
+        private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
     }
 }

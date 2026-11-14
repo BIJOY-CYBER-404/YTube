@@ -20,7 +20,12 @@ import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -66,6 +71,12 @@ class MainActivity : ComponentActivity() {
                 )
 
                 val updateActive = uiState.updateState != MandatoryUpdateState.None
+                LaunchedEffect(updateActive) {
+                    if (updateActive) {
+                        webView.evaluateJavascript(JsInjector.buildPauseScript(), null)
+                    }
+                }
+
                 BackHandler(enabled = !updateActive && (uiState.isFullscreen || uiState.canGoBack)) {
                     when {
                         uiState.isFullscreen -> exitFullscreen()
@@ -73,33 +84,40 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                TubeViewScreen(
-                    uiState = uiState,
-                    webView = webView,
-                    fullscreenContainer = fullscreenContainer,
-                    onReloadClick = {
-                        viewModel.setMainFrameError(false)
-                        webView.reload()
-                    },
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (!updateActive) {
+                        TubeViewScreen(
+                            uiState = uiState,
+                            webView = webView,
+                            fullscreenContainer = fullscreenContainer,
+                            onReloadClick = {
+                                viewModel.setMainFrameError(false)
+                                webView.reload()
+                            },
+                        )
+                    }
 
-                AnimatedVisibility(
-                    visible = updateActive,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    MandatoryUpdateScreen(
-                        updateState = uiState.updateState,
-                        currentVersionName = BuildConfig.VERSION_NAME,
-                        onStartUpdate = {
-                            viewModel.launchBrowserUpdate { intent ->
-                                startActivity(intent)
-                            }
-                        },
-                        onRecheckUpdate = {
-                            viewModel.checkForRemoteUpdate()
-                        },
-                    )
+                    AnimatedVisibility(
+                        visible = updateActive,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(10f),
+                    ) {
+                        MandatoryUpdateScreen(
+                            updateState = uiState.updateState,
+                            currentVersionName = BuildConfig.VERSION_NAME,
+                            onStartUpdate = {
+                                viewModel.launchBrowserUpdate { intent ->
+                                    startActivity(intent)
+                                }
+                            },
+                            onRecheckUpdate = {
+                                viewModel.checkForRemoteUpdate(force = true)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -110,6 +128,9 @@ class MainActivity : ComponentActivity() {
         if (wasPausedForBgOff) {
             webView.onResume()
             wasPausedForBgOff = false
+        }
+        if (viewModel.uiState.value.updateState == MandatoryUpdateState.None) {
+            viewModel.checkForRemoteUpdate(force = false)
         }
     }
 

@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2.0",
+  "versionCode": 4,
+  "versionName": "1.2.1",
   "mandatory": true,
-  "title": "YTube v1.2.0",
-  "releaseNotes": "Light theme UI, compressed APK size, package com.ytube.bk, and Play Protect security hardening.",
+  "title": "YTube v1.2.1",
+  "releaseNotes": "Reliable GitHub in-app update detection (releases, pre-releases, main/master update.json, no-cache fetch) and v1.2.1 build.",
   "apkUrl": ""
 }

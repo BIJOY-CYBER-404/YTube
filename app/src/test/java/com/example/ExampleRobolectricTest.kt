@@ -126,4 +126,48 @@ class ExampleRobolectricTest {
         )
         assertNull(noUpdate)
     }
+
+    @Test
+    fun `github update manager handles empty apkUrl and release without apk asset`() {
+        val manifestEmptyUrl = """
+            {
+              "versionCode": 5,
+              "versionName": "1.3.0",
+              "releaseNotes": "Update",
+              "apkUrl": ""
+            }
+        """.trimIndent()
+        val parsedManifest = GitHubUpdateManager.parseUpdateManifestJson(
+            rawJson = manifestEmptyUrl,
+            currentVersionName = "1.2.1",
+            currentVersionCode = 4,
+            repoSlug = "owner/YTube",
+        )
+        assertNotNull(parsedManifest)
+        assertEquals("https://github.com/owner/YTube/releases/latest", parsedManifest?.apkDownloadUrl)
+
+        val prereleaseArray = """
+            [
+              {
+                "tag_name": "release-1.3.0",
+                "name": "YTube 1.3.0",
+                "body": "Notes",
+                "draft": false,
+                "html_url": "https://github.com/owner/YTube/releases/tag/release-1.3.0",
+                "assets": []
+              }
+            ]
+        """.trimIndent()
+        val parsedArray = GitHubUpdateManager.parseReleasesArrayJson(
+            rawArrayJson = prereleaseArray,
+            currentVersionName = "1.2.1",
+            repoSlug = "owner/YTube",
+        )
+        assertNotNull(parsedArray)
+        assertEquals("1.3.0", parsedArray?.versionName)
+        assertEquals(
+            "https://github.com/owner/YTube/releases/tag/release-1.3.0",
+            parsedArray?.apkDownloadUrl,
+        )
+    }
 }
