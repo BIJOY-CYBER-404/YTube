@@ -1,8 +1,8 @@
 {
-  "versionCode": 13,
-  "versionName": "1.4.6",
+  "versionCode": 14,
+  "versionName": "1.4.7",
   "mandatory": true,
-  "title": "YTube v1.4.6",
-  "releaseNotes": "Google account auto-login sync, fully functional miniplayer card with high-res thumbnails, and unmuted autoplay on video open.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.6.apk"
+  "title": "YTube v1.4.7",
+  "releaseNotes": "One-tap Google Account sign-in & sync shortcut button, robust cookie persistence across updates, and device account integration.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.7.apk"
 }

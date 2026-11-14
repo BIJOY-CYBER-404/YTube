@@ -37,4 +37,6 @@
     <string name="minimize_video_desc">Minimize video player</string>
     <string name="expand_player_desc">Expand video player</string>
     <string name="close_player_desc">Close video player</string>
+    <string name="google_signin_title">Sign in with Google Account</string>
+    <string name="google_signin_desc">Sync your device Google account to YouTube</string>
 </resources>

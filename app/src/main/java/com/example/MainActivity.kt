@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
                             onExpandWatch = { expandWatchPlayer() },
                             onToggleWatchPlayPause = { toggleWatchPlayPause() },
                             onCloseWatch = { closeWatchPlayer() },
+                            onGoogleSignInClick = { openGoogleSignIn() },
                         )
 
                         if (uiState.isInitialContentReady && uiState.showAuthorDialog) {
@@ -197,6 +198,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    private fun openGoogleSignIn() {
+        feedWebView.loadUrl("https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fm.youtube.com")
     }
 
     private fun openWatchVideo(url: String) {

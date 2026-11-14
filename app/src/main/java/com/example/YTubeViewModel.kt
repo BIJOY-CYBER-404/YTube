@@ -3,6 +3,7 @@ package com.example
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.webkit.CookieManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cache.ResourceCacheManager
@@ -42,6 +43,7 @@ data class YTubeUiState(
     val playerMode: YTubePlayerMode = YTubePlayerMode.HIDDEN,
     val activeVideoUrl: String? = null,
     val isWatchPlayerReady: Boolean = false,
+    val isGoogleSignedIn: Boolean = false,
     val updateState: MandatoryUpdateState = MandatoryUpdateState.None,
 ) {
     companion object {
@@ -83,7 +85,16 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markInitialContentReady() {
         if (_uiState.value.isInitialContentReady) return
+        checkGoogleSignInStatus()
         _uiState.update { it.copy(isInitialContentReady = true) }
+    }
+
+    fun checkGoogleSignInStatus() {
+        try {
+            val cookies = CookieManager.getInstance().getCookie("https://m.youtube.com").orEmpty()
+            val signedIn = cookies.contains("LOGIN_INFO") || cookies.contains("SID=") || cookies.contains("__Secure-1PSID")
+            _uiState.update { it.copy(isGoogleSignedIn = signedIn) }
+        } catch (_: Exception) {}
     }
 
     fun openWatchVideo(url: String): Boolean {

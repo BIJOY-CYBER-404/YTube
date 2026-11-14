@@ -128,6 +128,7 @@ fun YTubeScreen(
     onExpandWatch: () -> Unit,
     onToggleWatchPlayPause: () -> Unit,
     onCloseWatch: () -> Unit,
+    onGoogleSignInClick: () -> Unit,
 ) {
     val isDark = isSystemInDarkTheme()
     val containerBg = MaterialTheme.colorScheme.background
@@ -156,6 +157,38 @@ fun YTubeScreen(
                         }
                     },
             ) {
+                if (!uiState.isGoogleSignedIn && uiState.isInitialContentReady && uiState.playerMode == YTubePlayerMode.HIDDEN && !uiState.isFullscreen) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 4.dp, end = 12.dp)
+                            .zIndex(4f)
+                            .clickable(onClick = onGoogleSignInClick),
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shadowElevation = 4.dp,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_person),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "Sign in",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                }
+
                 // 1. Feed WebView (Home / Shorts / Subscriptions / Search / Sign-In)
                 AndroidView(
                     factory = { ctx ->
