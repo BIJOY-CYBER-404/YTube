@@ -1,9 +1,9 @@
 {
-  "versionCode": 29,
-  "versionName": "1.4.22",
+  "versionCode": 30,
+  "versionName": "1.4.23",
   "mandatory": true,
-  "title": "YTube v1.4.22",
-  "releaseNotes": "Removed aggressive player container CSS overrides and element-collapsing rules so YouTube's mobile player DOM mounts and initializes natively without video unavailability or configuration errors.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.22.apk",
-  "apkSizeBytes": 12227158
+  "title": "YTube v1.4.23",
+  "releaseNotes": "Fixed infinite video loading and paused start: preserved native player sizing without sticky/spacing CSS hacks, deferred watch URL loading until layout attachment, prevented stream/thumbnail accidental ad-blocking, returned HTTP 403 for blocked endpoints, and added active autoplay + unmute retries.",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.23.apk",
+  "apkSizeBytes": 12080096
 }

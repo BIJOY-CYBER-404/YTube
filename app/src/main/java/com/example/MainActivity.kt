@@ -92,6 +92,8 @@ class MainActivity : ComponentActivity() {
     private var wasPausedForBgOff: Boolean = false
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var pendingWatchLoadUrl: String? = null
+    private var pendingWatchLayoutListener: View.OnLayoutChangeListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -305,6 +307,57 @@ class MainActivity : ComponentActivity() {
         ).also { watchWebView = it }
     }
 
+    private fun loadWatchUrlWhenLaidOut(activeWatch: BackgroundAudioWebView, targetUrl: String) {
+        pendingWatchLayoutListener?.let { activeWatch.removeOnLayoutChangeListener(it) }
+        pendingWatchLayoutListener = null
+        pendingWatchLoadUrl = targetUrl
+
+        if (activeWatch.isAttachedToWindow && activeWatch.width > 0 && activeWatch.height > 0) {
+            pendingWatchLoadUrl = null
+            activeWatch.loadUrl(targetUrl)
+            return
+        }
+
+        val listener = object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(
+                v: View?,
+                left: Int,
+                top: Int,
+                right: Int,
+                bottom: Int,
+                oldLeft: Int,
+                oldTop: Int,
+                oldRight: Int,
+                oldBottom: Int,
+            ) {
+                if (right - left > 0 && bottom - top > 0) {
+                    activeWatch.removeOnLayoutChangeListener(this)
+                    if (pendingWatchLayoutListener === this) {
+                        pendingWatchLayoutListener = null
+                    }
+                    val urlToLoad = pendingWatchLoadUrl ?: return
+                    if (viewModel.uiState.value.activeVideoUrl == urlToLoad) {
+                        pendingWatchLoadUrl = null
+                        activeWatch.loadUrl(urlToLoad)
+                    }
+                }
+            }
+        }
+        pendingWatchLayoutListener = listener
+        activeWatch.addOnLayoutChangeListener(listener)
+        activeWatch.postDelayed({
+            val urlToLoad = pendingWatchLoadUrl ?: return@postDelayed
+            if (viewModel.uiState.value.activeVideoUrl == urlToLoad) {
+                activeWatch.removeOnLayoutChangeListener(listener)
+                if (pendingWatchLayoutListener === listener) {
+                    pendingWatchLayoutListener = null
+                }
+                pendingWatchLoadUrl = null
+                activeWatch.loadUrl(urlToLoad)
+            }
+        }, 300)
+    }
+
     private fun openWatchVideo(url: String) {
         val activeWatch = getOrCreateWatchWebView()
         MediaPlaybackService.PlayerBridge.attach(activeWatch)
@@ -317,30 +370,18 @@ class MainActivity : ComponentActivity() {
         val shouldLoadNewUrl = viewModel.openWatchVideo(targetLoadUrl)
         if (shouldLoadNewUrl) {
             activeWatch.stopLoading()
-            activeWatch.settings.cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
-                WebSettings.LOAD_DEFAULT
-            } else {
-                WebSettings.LOAD_CACHE_ELSE_NETWORK
-            }
-            val headers = mapOf("Referer" to "https://www.youtube.com/")
-            activeWatch.loadUrl(targetLoadUrl, headers)
+            activeWatch.settings.cacheMode = WebSettings.LOAD_DEFAULT
+            loadWatchUrlWhenLaidOut(activeWatch, targetLoadUrl)
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 200)
+            }, 800)
             activeWatch.postDelayed({
                 activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
                 activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 600)
-            activeWatch.postDelayed({
-                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
-                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 1200)
-            activeWatch.postDelayed({
-                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
-                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 2000)
+            }, 1800)
         } else {
+            activeWatch.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
             activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
             activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
         }
@@ -356,7 +397,7 @@ class MainActivity : ComponentActivity() {
         } else {
             WebSettings.LOAD_CACHE_ELSE_NETWORK
         }
-        activeWatch.loadUrl(activeUrl)
+        loadWatchUrlWhenLaidOut(activeWatch, activeUrl)
     }
 
     private fun registerNetworkRecoveryCallback() {
@@ -369,10 +410,11 @@ class MainActivity : ComponentActivity() {
             val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     runOnUiThread {
+                        feedWebView.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        watchWebView?.settings?.cacheMode = WebSettings.LOAD_DEFAULT
                         val state = viewModel.uiState.value
                         if (state.hasMainFrameError) {
                             viewModel.setMainFrameError(false)
-                            feedWebView.settings.cacheMode = WebSettings.LOAD_DEFAULT
                             feedWebView.reload()
                         }
                         if (state.hasWatchError && state.playerMode != YTubePlayerMode.HIDDEN) {
@@ -601,11 +643,7 @@ class MainActivity : ComponentActivity() {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 databaseEnabled = true
-                cacheMode = if (viewModel.resourceCache.isNetworkAvailable()) {
-                    WebSettings.LOAD_DEFAULT
-                } else {
-                    WebSettings.LOAD_CACHE_ELSE_NETWORK
-                }
+                cacheMode = WebSettings.LOAD_DEFAULT
                 userAgentString = userAgentString
                     .replace("; wv)", ")")
                     .replace("Version/4.0 ", "")

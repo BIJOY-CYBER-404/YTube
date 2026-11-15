@@ -321,16 +321,11 @@ fun YTubeScreen(
                     val miniHeight = 64.dp
                     val miniBottomPadding = if (feedHasBottomNav) 48.dp else 0.dp
 
-                    // Watch WebView container (Visible when Expanded; when Minimized, kept compact & alive in background without allocating full-screen GPU layer)
+                    // Watch WebView container (keep full viewport behind opaque feed when minimized so YouTube player never resizes to 1px)
                     Box(
                         modifier = Modifier
-                            .let { mod ->
-                                if (isExpanded) {
-                                    mod.fillMaxSize().zIndex(5f)
-                                } else {
-                                    mod.size(1.dp).zIndex(-1f)
-                                }
-                            },
+                            .fillMaxSize()
+                            .zIndex(if (isExpanded) 5f else -2f),
                     ) {
                         key(watchRecoveryEpoch) {
                             val activeWatchWebView = watchWebViewProvider()
@@ -342,6 +337,12 @@ fun YTubeScreen(
                                             ViewGroup.LayoutParams.MATCH_PARENT,
                                             ViewGroup.LayoutParams.MATCH_PARENT,
                                         )
+                                    }
+                                },
+                                update = { view ->
+                                    if (view.isFocusable != isExpanded) {
+                                        view.isFocusable = isExpanded
+                                        view.isFocusableInTouchMode = isExpanded
                                     }
                                 },
                                 modifier = Modifier

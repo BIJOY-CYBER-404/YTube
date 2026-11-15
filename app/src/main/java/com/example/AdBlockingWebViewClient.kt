@@ -51,6 +51,9 @@ class AdBlockingWebViewClient(
             return WebResourceResponse(
                 "text/plain",
                 "utf-8",
+                403,
+                "Blocked",
+                mapOf("Access-Control-Allow-Origin" to "*"),
                 ByteArrayInputStream(ByteArray(0)),
             )
         }

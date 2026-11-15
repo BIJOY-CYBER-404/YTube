@@ -38,8 +38,16 @@ class AdBlocker(
         }
 
         val host = extractHostFast(normalizedUrl)
-        if (host != null && isBlockedHost(host)) {
-            return true
+        if (host != null) {
+            if (host == "googlevideo.com" || host.endsWith(".googlevideo.com") ||
+                host == "ytimg.com" || host.endsWith(".ytimg.com") ||
+                host == "ggpht.com" || host.endsWith(".ggpht.com")
+            ) {
+                return false
+            }
+            if (isBlockedHost(host)) {
+                return true
+            }
         }
 
         for (i in blockedSubstrings.indices) {

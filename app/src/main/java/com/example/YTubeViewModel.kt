@@ -462,6 +462,6 @@ class YTubeViewModel(application: Application) : AndroidViewModel(application) {
         private const val KEY_AUTHOR_DIALOG_SHOWN = "author_dialog_shown_v4"
         private const val UPDATE_CHECK_THROTTLE_MS = 10_000L
         private const val PRELOAD_SKELETON_MAX_MS = 2_400L
-        private const val WATCH_SKELETON_MAX_MS = 3_500L
+        private const val WATCH_SKELETON_MAX_MS = 6_000L
     }
 }
