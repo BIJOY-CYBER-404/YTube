@@ -1,9 +1,9 @@
 {
-  "versionCode": 30,
-  "versionName": "1.4.23",
+  "versionCode": 31,
+  "versionName": "1.4.24",
   "mandatory": true,
-  "title": "YTube v1.4.23",
-  "releaseNotes": "Fixed infinite video loading and paused start: preserved native player sizing without sticky/spacing CSS hacks, deferred watch URL loading until layout attachment, prevented stream/thumbnail accidental ad-blocking, returned HTTP 403 for blocked endpoints, and added active autoplay + unmute retries.",
-  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.23.apk",
+  "title": "YTube v1.4.24",
+  "releaseNotes": "Stopped aggressive play/unmute loop from interrupting YouTube buffering (respects getPlayerState playing/buffering, throttles auto-play retries, checks visible ad overlays, guards main-frame routing, and loads watch URL immediately on attach).",
+  "apkUrl": "https://github.com/BIJOY-CYBER-404/YTube/raw/main/apk/YTube-v1.4.24.apk",
   "apkSizeBytes": 12080096
 }

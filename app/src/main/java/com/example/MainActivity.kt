@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var pendingWatchLoadUrl: String? = null
-    private var pendingWatchLayoutListener: View.OnLayoutChangeListener? = null
+    private var pendingWatchAttachListener: View.OnAttachStateChangeListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -308,54 +308,46 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadWatchUrlWhenLaidOut(activeWatch: BackgroundAudioWebView, targetUrl: String) {
-        pendingWatchLayoutListener?.let { activeWatch.removeOnLayoutChangeListener(it) }
-        pendingWatchLayoutListener = null
+        pendingWatchAttachListener?.let { activeWatch.removeOnAttachStateChangeListener(it) }
+        pendingWatchAttachListener = null
         pendingWatchLoadUrl = targetUrl
 
-        if (activeWatch.isAttachedToWindow && activeWatch.width > 0 && activeWatch.height > 0) {
+        if (activeWatch.isAttachedToWindow) {
             pendingWatchLoadUrl = null
             activeWatch.loadUrl(targetUrl)
             return
         }
 
-        val listener = object : View.OnLayoutChangeListener {
-            override fun onLayoutChange(
-                v: View?,
-                left: Int,
-                top: Int,
-                right: Int,
-                bottom: Int,
-                oldLeft: Int,
-                oldTop: Int,
-                oldRight: Int,
-                oldBottom: Int,
-            ) {
-                if (right - left > 0 && bottom - top > 0) {
-                    activeWatch.removeOnLayoutChangeListener(this)
-                    if (pendingWatchLayoutListener === this) {
-                        pendingWatchLayoutListener = null
-                    }
-                    val urlToLoad = pendingWatchLoadUrl ?: return
+        val listener = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                activeWatch.removeOnAttachStateChangeListener(this)
+                if (pendingWatchAttachListener === this) {
+                    pendingWatchAttachListener = null
+                }
+                activeWatch.post {
+                    val urlToLoad = pendingWatchLoadUrl ?: return@post
                     if (viewModel.uiState.value.activeVideoUrl == urlToLoad) {
                         pendingWatchLoadUrl = null
                         activeWatch.loadUrl(urlToLoad)
                     }
                 }
             }
+
+            override fun onViewDetachedFromWindow(v: View) {}
         }
-        pendingWatchLayoutListener = listener
-        activeWatch.addOnLayoutChangeListener(listener)
+        pendingWatchAttachListener = listener
+        activeWatch.addOnAttachStateChangeListener(listener)
         activeWatch.postDelayed({
             val urlToLoad = pendingWatchLoadUrl ?: return@postDelayed
             if (viewModel.uiState.value.activeVideoUrl == urlToLoad) {
-                activeWatch.removeOnLayoutChangeListener(listener)
-                if (pendingWatchLayoutListener === listener) {
-                    pendingWatchLayoutListener = null
+                activeWatch.removeOnAttachStateChangeListener(listener)
+                if (pendingWatchAttachListener === listener) {
+                    pendingWatchAttachListener = null
                 }
                 pendingWatchLoadUrl = null
                 activeWatch.loadUrl(urlToLoad)
             }
-        }, 300)
+        }, 250)
     }
 
     private fun openWatchVideo(url: String) {
@@ -372,14 +364,6 @@ class MainActivity : ComponentActivity() {
             activeWatch.stopLoading()
             activeWatch.settings.cacheMode = WebSettings.LOAD_DEFAULT
             loadWatchUrlWhenLaidOut(activeWatch, targetLoadUrl)
-            activeWatch.postDelayed({
-                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
-                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 800)
-            activeWatch.postDelayed({
-                activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)
-                activeWatch.evaluateJavascript(JsInjector.buildUnmuteScript(), null)
-            }, 1800)
         } else {
             activeWatch.evaluateJavascript(JsInjector.buildMinimizedScript(false), null)
             activeWatch.evaluateJavascript(JsInjector.buildPlayScript(), null)

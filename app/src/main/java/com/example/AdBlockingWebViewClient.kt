@@ -79,17 +79,18 @@ class AdBlockingWebViewClient(
             return openExternalUri(uri)
         }
 
+        val isMainFrame = request?.isForMainFrame != false
         val host = uri.host?.lowercase(Locale.ROOT) ?: return false
         if (scheme == "https" && isInternalYouTubeOrAuthHost(host)) {
             val path = uri.path.orEmpty()
             val isWatchUrl = isYouTubeWatchUri(uri)
 
-            if (interceptWatchLinks && isWatchUrl && onOpenWatchVideo != null) {
+            if (isMainFrame && interceptWatchLinks && isWatchUrl && onOpenWatchVideo != null) {
                 onOpenWatchVideo.invoke(uri.toString())
                 return true
             }
 
-            if (isWatchRole && !isWatchUrl && !isAuthHost(host) && onOpenInFeed != null) {
+            if (isMainFrame && isWatchRole && !isWatchUrl && !isAuthHost(host) && onOpenInFeed != null) {
                 val isBrowsePath = path == "/" ||
                     path.startsWith("/@") ||
                     path.startsWith("/channel/") ||

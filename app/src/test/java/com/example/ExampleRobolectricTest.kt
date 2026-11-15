@@ -315,6 +315,8 @@ class ExampleRobolectricTest {
         val watchScript = JsInjector.buildProtectionScript(backgroundPlayEnabled = true, isDarkTheme = false, isWatchRole = true)
         assertTrue(watchScript.contains("(v0 && v0.readyState >= 1) || hasWatchMeta"))
         assertTrue(watchScript.contains("ensureWatchPlay"))
+        assertTrue(watchScript.contains("pState === 1 || pState === 3"))
+        assertTrue(watchScript.contains("isVisibleEl(adOverlay)"))
         assertTrue(watchScript.contains("videoNode.playsInline = true"))
         assertFalse(watchScript.contains("[class*=\"player-placeholder\"]"))
         assertFalse(adBlocker.isAdRequest("https://rr1---sn-4g5e6nsz.googlevideo.com/videoplayback?pagead=1"))

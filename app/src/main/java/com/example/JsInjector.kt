@@ -314,11 +314,13 @@ object JsInjector {
 
                 var triggerUnmute = function() {
                     if (window.__ytubeAdSpeedActive) return;
+                    var anyMuted = false;
                     try {
                         var videos = document.querySelectorAll('video');
                         for (var i = 0; i < videos.length; i++) {
                             var v = videos[i];
                             if (v.muted) {
+                                anyMuted = true;
                                 v.muted = false;
                             }
                             if (v.volume < 1.0) {
@@ -329,48 +331,73 @@ object JsInjector {
                     try {
                         var player = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
                         if (player) {
-                            if (typeof player.isMuted === 'function' && player.isMuted()) {
+                            var pMuted = (typeof player.isMuted === 'function') ? player.isMuted() : false;
+                            if (pMuted) {
+                                anyMuted = true;
                                 if (typeof player.unMute === 'function') player.unMute();
-                            } else if (typeof player.unMute === 'function') {
-                                player.unMute();
                             }
                             if (typeof player.setVolume === 'function') {
                                 player.setVolume(100);
                             }
                         }
                     } catch (e) {}
-                    try {
-                        var unmuteBtns = document.querySelectorAll(
-                            '.ytp-unmute, .ytp-unmute-inner, button.ytm-unmute-button, button[aria-label*="unmute" i], button.ytp-mute-button[data-title-no-tooltip="Unmute"], .ytp-unmute.ytp-panel-header'
-                        );
-                        for (var b = 0; b < unmuteBtns.length; b++) {
-                            var btn = unmuteBtns[b];
-                            if (btn && typeof btn.click === 'function' && isVisibleEl(btn)) {
-                                btn.click();
-                            }
-                        }
-                    } catch (e) {}
-                };
-                window.__ytubeUnmute = triggerUnmute;
-
-                var ensureWatchPlay = function(videoNode, playerNode) {
-                    var v = videoNode || document.querySelector('video');
-                    var p = playerNode || document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
-                    triggerUnmute();
-                    if (v && v.paused) {
+                    if (anyMuted) {
                         try {
-                            var playBtns = document.querySelectorAll('.ytp-large-play-button, button.ytm-play-button, button[aria-label="Play"]');
-                            for (var pb = 0; pb < playBtns.length; pb++) {
-                                if (isVisibleEl(playBtns[pb]) && typeof playBtns[pb].click === 'function') {
-                                    playBtns[pb].click();
+                            var unmuteBtns = document.querySelectorAll(
+                                '.ytp-unmute, .ytp-unmute-inner, button.ytm-unmute-button, button[aria-label*="unmute" i], button.ytp-mute-button[data-title-no-tooltip="Unmute"]'
+                            );
+                            for (var b = 0; b < unmuteBtns.length; b++) {
+                                var btn = unmuteBtns[b];
+                                if (btn && typeof btn.click === 'function' && isVisibleEl(btn)) {
+                                    btn.click();
+                                    break;
                                 }
                             }
                         } catch (e) {}
+                    }
+                };
+                window.__ytubeUnmute = triggerUnmute;
+
+                var ensureWatchPlay = function(videoNode, playerNode, forceManual) {
+                    var v = videoNode || document.querySelector('video');
+                    var p = playerNode || document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
+                    triggerUnmute();
+                    if (!v || !v.paused || v.ended) return;
+
+                    var pState = -1;
+                    try {
+                        if (p && typeof p.getPlayerState === 'function') {
+                            pState = p.getPlayerState();
+                        }
+                    } catch (e) {}
+                    // Do not interrupt YouTube player while it is already playing (1) or buffering (3)
+                    if (!forceManual && (pState === 1 || pState === 3)) return;
+
+                    if (!forceManual) {
+                        var nowPlayMs = Date.now();
+                        if (nowPlayMs - (window.__ytubeLastPlayAttemptAt || 0) < 900) return;
+                        if ((window.__ytubePlayAttemptCount || 0) >= 10) return;
+                        window.__ytubeLastPlayAttemptAt = nowPlayMs;
+                        window.__ytubePlayAttemptCount = (window.__ytubePlayAttemptCount || 0) + 1;
+                    }
+
+                    var invoked = false;
+                    try {
+                        if (p && typeof p.playVideo === 'function') {
+                            p.playVideo();
+                            invoked = true;
+                        }
+                    } catch (e) {}
+                    if (!invoked) {
                         try {
-                            if (p && typeof p.playVideo === 'function') {
-                                p.playVideo();
+                            var largePlay = document.querySelector('.ytp-large-play-button, button.ytm-play-button');
+                            if (isVisibleEl(largePlay) && typeof largePlay.click === 'function') {
+                                largePlay.click();
+                                invoked = true;
                             }
                         } catch (e) {}
+                    }
+                    if (!invoked && v.readyState >= 1) {
                         try {
                             var pr = v.play();
                             if (pr && pr.catch) pr.catch(function(){});
@@ -391,7 +418,7 @@ object JsInjector {
                         if (window.__ytubeRole === 'watch' && !window.__ytubeUserPaused && !window.__ytubeAdSpeedActive) {
                             var curId = window.__ytubeActiveVideoId || '__started__';
                             if (window.__ytubeAutoPlayCompletedForId !== curId) {
-                                ensureWatchPlay(videoNode, null);
+                                ensureWatchPlay(videoNode, null, false);
                             }
                         }
                     };
@@ -416,12 +443,10 @@ object JsInjector {
                             window.__ytubeUserPaused = true;
                         }
                     }, true);
-                    ['loadedmetadata', 'loadeddata', 'canplay'].forEach(function(evt) {
-                        videoNode.addEventListener(evt, function() {
-                            handleAudio();
-                            handleReadyPlay();
-                        }, true);
-                    });
+                    videoNode.addEventListener('canplay', function() {
+                        handleAudio();
+                        handleReadyPlay();
+                    }, true);
                     videoNode.addEventListener('volumechange', handleAudio, true);
                     handleAudio();
                 };
@@ -432,9 +457,6 @@ object JsInjector {
                         var v0 = document.querySelector('video');
                         if (v0) {
                             monitorVideoAudio(v0);
-                            if (v0.paused && !window.__ytubeUserPaused && !window.__ytubeAutoPlayCompletedForId) {
-                                ensureWatchPlay(v0, null);
-                            }
                         }
                         if (!window.__ytubeWatchReadySignaled) {
                             collapseWatchSpacing();
@@ -467,9 +489,10 @@ object JsInjector {
 
                 window.__ytubePlay = function() {
                     window.__ytubeUserPaused = false;
+                    window.__ytubePlayAttemptCount = 0;
                     var video = document.querySelector('video');
                     if (video) {
-                        ensureWatchPlay(video, null);
+                        ensureWatchPlay(video, null, true);
                         return true;
                     }
                     return false;
@@ -526,7 +549,7 @@ object JsInjector {
                             var adOverlay = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-persistent-progress-bar-container');
                             var isAdShowing = Boolean(
                                 (player && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'))) ||
-                                adOverlay
+                                (adOverlay && isVisibleEl(adOverlay))
                             );
 
                             var video = document.querySelector('video');
@@ -546,6 +569,8 @@ object JsInjector {
                                 if (currentVidId && currentVidId !== window.__ytubeActiveVideoId && !video.ended) {
                                     window.__ytubeUserPaused = false;
                                     window.__ytubeAutoPlayCompletedForId = '';
+                                    window.__ytubePlayAttemptCount = 0;
+                                    window.__ytubeLastPlayAttemptAt = 0;
                                     if (window.__ytubeActiveVideoId) {
                                         window.__ytubePrevVideoId = window.__ytubeActiveVideoId;
                                     }
@@ -555,7 +580,7 @@ object JsInjector {
                                 if (!video.paused && video.readyState >= 2 && video.currentTime > 0.1) {
                                     window.__ytubeAutoPlayCompletedForId = activePlayKey;
                                 } else if (video.paused && !video.ended && !window.__ytubeUserPaused && window.__ytubeAutoPlayCompletedForId !== activePlayKey) {
-                                    ensureWatchPlay(video, player);
+                                    ensureWatchPlay(video, player, false);
                                 }
 
                                 var nearEnd = isFinite(video.duration) && video.duration > 5 &&
